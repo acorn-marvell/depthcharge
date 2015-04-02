@@ -37,7 +37,7 @@ int main(void)
 
 	// Initialize some consoles.
 	serial_console_init();
-	cbmem_console_init();
+	//cbmem_console_init();
 	input_init();
 
 	printf("\n\nStarting read/write depthcharge on " CONFIG_BOARD "...\n");
@@ -46,18 +46,21 @@ int main(void)
 	timestamp_init();
 
 	// Run any generic initialization functions that are compiled in.
+	run_init_funcs();
+/*
 	if (run_init_funcs())
 		halt();
-
+*/
 	if (CONFIG_CLI)
 		console_loop();
 
 	timestamp_add_now(TS_RW_VB_SELECT_AND_LOAD_KERNEL);
 
 	// Select a kernel and boot it.
-	if (vboot_select_and_load_kernel())
-		halt();
-
+	if (storage_init()) {
+		storage_read(0, 100000, 0x20000000);
+	} else
+ 		halt();
 	// We should never get here.
 	printf("Got to the end!\n");
 	halt();
