@@ -87,8 +87,10 @@ static void enable_ehci(int target)
 
 	baseReg = base;
 
-	writel(sizeReg, (void *)(0xF1058320 + target * 0x8));
-	writel(baseReg, (void *)(0xF1058324 + target * 0x8));
+	//writel(sizeReg, (void *)(0xF1058320 + target * 0x8));
+	//writel(baseReg, (void *)(0xF1058324 + target * 0x8));
+	writel(sizeReg, (void *)(0xF10F4000 + target * 0x8));
+        writel(baseReg, (void *)(0xF10F4004 + target * 0x8));
 
 	/* Wait 100 usec */
 	udelay(100);
@@ -141,7 +143,8 @@ static int board_setup(void)
 {
 	enable_ehci(0);
 
-	UsbHostController *usb_host = new_usb_hc(EHCI, 0xF1058100);
+	//UsbHostController *usb_host = new_usb_hc(EHCI, 0xF1058100);
+	UsbHostController *usb_host = new_usb_hc(XHCI, 0xF10F0000);
 	list_insert_after(&usb_host->list_node, &usb_host_controllers);
 
 	return 0;
