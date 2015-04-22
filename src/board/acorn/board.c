@@ -28,6 +28,7 @@
 #include "drivers/tpm/tpm.h"
 #include "vboot/util/flag.h"
 
+#if 0
 #define  DDR_BASE_CS_LOW_MASK   0xffff0000
 #define  DDR_SIZE_MASK          0xffff0000
 
@@ -138,10 +139,11 @@ static void enable_ehci(int target)
 
 	writel(regVal, USB_CORE_MODE_REG);
 }
+#endif
 
 static int board_setup(void)
 {
-	enable_ehci(0);
+	//enable_ehci(0);
 
 	//UsbHostController *usb_host = new_usb_hc(EHCI, 0xF1058100);
 	UsbHostController *usb_host = new_usb_hc(XHCI, 0xF10F0000);
