@@ -25,6 +25,7 @@
 #include "base/init_funcs.h"
 #include "drivers/bus/usb/usb.h"
 #include "drivers/storage/blockdev.h"
+#include "drivers/bus/i2c/armada38x_i2c.h"
 #include "drivers/tpm/tpm.h"
 #include "vboot/util/flag.h"
 #include "eth.h"
@@ -145,10 +146,11 @@ static int board_setup(void)
 	enable_ehci(0);
 	mvEnableSwitchDelay(0);
 
-	//UsbHostController *usb_host = new_usb_hc(EHCI, 0xF1058100);
 	UsbHostController *usb_host = new_usb_hc(XHCI, 0xF10F0000);
 	list_insert_after(&usb_host->list_node, &usb_host_controllers);
 
+	new_armada38x_i2c(0, 0x4E);
+	
 	return 0;
 }
 
