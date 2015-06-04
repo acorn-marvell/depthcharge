@@ -33,7 +33,9 @@
 #include "vboot/stages.h"
 #include "vboot/util/commonparams.h"
 #include "vboot/util/vboot_handoff.h"
+#include "vboot/boot.h"
 
+#if 0
 static int vboot_init_handoff()
 {
 	struct vboot_handoff *vboot_handoff;
@@ -57,6 +59,7 @@ static int vboot_init_handoff()
 
 	return vboot_do_init_out_flags(vboot_handoff->init_params.out_flags);
 }
+#endif
 
 int main(void)
 {
@@ -65,7 +68,7 @@ int main(void)
 
 	// Initialize some consoles.
 	serial_console_init();
-	cbmem_console_init();
+	//cbmem_console_init();
 	input_init();
 
 	printf("\n\nStarting depthcharge on " CONFIG_BOARD "...\n");
@@ -81,10 +84,11 @@ int main(void)
 
 	if (CONFIG_CLI)
 		console_loop();
-
+#if 0
 	// Set up the common param structure, not clearing shared data.
 	if (vboot_init_handoff())
 		halt();
+#endif
 
 	vboot_try_fastboot();
 
