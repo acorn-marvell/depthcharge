@@ -31,7 +31,7 @@ static int do_boot(cmd_tbl_t *cmdtp, int flag,
 
 	addr = (void *) strtoul(argv[1], NULL, 16);
 
-	return legacy_boot(addr, "dummy command");
+	return legacy_boot(addr, "console=ttyS0,115200 earlyprintk root=/dev/sda3 init=sbin/init rw rootwait");
 }
 
 U_BOOT_CMD(
