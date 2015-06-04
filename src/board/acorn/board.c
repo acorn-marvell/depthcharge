@@ -27,6 +27,7 @@
 #include "drivers/storage/blockdev.h"
 #include "drivers/tpm/tpm.h"
 #include "vboot/util/flag.h"
+#include "eth.h"
 
 #define  DDR_BASE_CS_LOW_MASK   0xffff0000
 #define  DDR_SIZE_MASK          0xffff0000
@@ -140,6 +141,7 @@ static void enable_usb(int target)
 static int board_setup(void)
 {
 	enable_usb(0);
+	mvEnableSwitchDelay(0);
 
 	UsbHostController *usb_host = new_usb_hc(XHCI, 0xF10F0000);
 	list_insert_after(&usb_host->list_node, &usb_host_controllers);
