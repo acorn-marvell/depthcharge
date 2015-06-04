@@ -27,7 +27,7 @@ depthcharge-y += draw.c
 depthcharge-y += i2c.c
 depthcharge-y += memory.c
 depthcharge-y += printbuf.c
-depthcharge-y += spi.c
+depthcharge-CONFIG_DRIVER_FLASH_SPI += spi.c
 depthcharge-y += storage.c
 depthcharge-y += timer.c
 

@@ -24,6 +24,7 @@
 
 #include "base/init_funcs.h"
 #include "drivers/bus/usb/usb.h"
+#include "drivers/storage/blockdev.h"
 #include "drivers/tpm/tpm.h"
 #include "vboot/util/flag.h"
 
