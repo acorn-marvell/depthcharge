@@ -29,6 +29,7 @@
 #include "config.h"
 #include "debug/cli/common.h"
 #include "drivers/input/input.h"
+#include "drivers/storage/storage.h"
 #include "vboot/fastboot.h"
 #include "vboot/stages.h"
 #include "vboot/util/commonparams.h"
@@ -89,6 +90,13 @@ int main(void)
 	if (vboot_init_handoff())
 		halt();
 #endif
+
+	// Select a kernel and boot it.
+        if (storage_init()) {
+                storage_read(0, 100000, (int *)0x20000000);
+		legacy_boot((void *)0x20000000, "dummy command");
+        } else
+                halt();
 
 	vboot_try_fastboot();
 
