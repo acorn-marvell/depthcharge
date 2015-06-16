@@ -89,8 +89,12 @@ static void enable_usb(int target)
 
 	baseReg = base;
 
+	//enable xhci
 	writel(sizeReg, (void *)(0xF10F4000 + target * 0x8));
         writel(baseReg, (void *)(0xF10F4004 + target * 0x8));
+	//enable ehci
+	writel(sizeReg, (void *)(0xF1058320 + target * 0x8));
+        writel(baseReg, (void *)(0xF1058324 + target * 0x8));
 
 	/* Wait 100 usec */
 	udelay(100);
@@ -144,8 +148,10 @@ static int board_setup(void)
 	enable_usb(0);
 	mvEnableSwitchDelay(0);
 
-	UsbHostController *usb_host = new_usb_hc(XHCI, 0xF10F0000);
-	list_insert_after(&usb_host->list_node, &usb_host_controllers);
+	UsbHostController *usb_host20 = new_usb_hc(EHCI, 0xF1058100);
+	list_insert_after(&usb_host20->list_node, &usb_host_controllers);
+	UsbHostController *usb_host30 = new_usb_hc(XHCI, 0xF10F0000);
+	list_insert_after(&usb_host30->list_node, &usb_host_controllers);
 
 	new_armada38x_i2c(0, 0x4E);
 	
