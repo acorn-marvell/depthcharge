@@ -29,6 +29,10 @@
 #include "drivers/tpm/tpm.h"
 #include "vboot/util/flag.h"
 #include "eth.h"
+#include "drivers/storage/mtd/mtd.h"
+#include "drivers/storage/mtd/nand/armada38x_nand.h"
+#include "drivers/storage/mtd/stream.h"
+
 
 #define  DDR_BASE_CS_LOW_MASK   0xffff0000
 #define  DDR_SIZE_MASK          0xffff0000
@@ -154,6 +158,8 @@ static int board_setup(void)
 	list_insert_after(&usb_host30->list_node, &usb_host_controllers);
 
 	new_armada38x_i2c(0, 0x4E);
+
+        new_armada38x_nand();
 	
 	return 0;
 }

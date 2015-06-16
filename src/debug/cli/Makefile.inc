@@ -26,5 +26,6 @@ depthcharge-y += printbuf.c
 depthcharge-CONFIG_DRIVER_FLASH_SPI += spi.c
 depthcharge-y += storage.c
 depthcharge-y += timer.c
+depthcharge-y += nand.c
 
 netboot-y += enet.c
