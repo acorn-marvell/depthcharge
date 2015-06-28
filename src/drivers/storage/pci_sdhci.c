@@ -52,10 +52,11 @@ static int attach_device(SdhciHost *host)
 }
 
 /* Initialize an HDHCI port */
-SdhciHost *new_pci_sdhci_host(pcidev_t dev, int removable,
+SdhciHost *new_pci_sdhci_host(pcidev_t dev, int platform_info,
 			      int clock_min, int clock_max)
 {
 	PciSdhciHost *host;
+	int removable = platform_info & SDHCI_PLATFORM_REVOMVABLE;
 
 	host = xzalloc(sizeof(*host));
 
@@ -65,6 +66,12 @@ SdhciHost *new_pci_sdhci_host(pcidev_t dev, int removable,
 
 	host->sdhci_host.quirks = SDHCI_QUIRK_NO_HISPD_BIT |
 		SDHCI_QUIRK_NO_SIMULT_VDD_AND_POWER;
+
+	if (platform_info & SDHCI_PLATFORM_NO_EMMC_HS200)
+		host->sdhci_host.quirks |= SDHCI_QUIRK_NO_EMMC_HS200;
+
+	if (platform_info & SDHCI_PLATFORM_EMMC_1V8_POWER)
+		host->sdhci_host.quirks |= SDHCI_QUIRK_EMMC_1V8_POWER;
 
 	host->sdhci_host.attach = attach_device;
 	host->sdhci_host.clock_f_min = clock_min;
@@ -76,6 +83,10 @@ SdhciHost *new_pci_sdhci_host(pcidev_t dev, int removable,
 	 * and 2.7..3.6 voltage ranges, which is typical for eMMC devices.
 	 */
 	host->sdhci_host.mmc_ctrlr.hardcoded_voltage = 0x40ff8080;
+	/*
+	 * Need to program host->ioaddr for SD/MMC read/write operation
+	 */
+	attach_device(&host->sdhci_host);
 
 	add_sdhci(&host->sdhci_host);
 

@@ -22,6 +22,7 @@
 
 #include <libpayload.h>
 
+#include "base/gpt.h"
 #include "fastboot/backend.h"
 
 #define BACKEND_DEBUG
@@ -47,6 +48,15 @@ struct image_part_details {
 	size_t part_addr;
 	size_t part_size_lba;
 };
+
+/********************** Stub implementations *****************************/
+backend_ret_t __attribute__((weak)) board_write_partition(const char *name,
+							  void *image_addr,
+							  size_t image_size)
+{
+	return BE_NOT_HANDLED;
+}
+
 
 /********************** Sparse Image Handling ****************************/
 
@@ -85,7 +95,7 @@ struct sparse_chunk_hdr {
 };
 
 /* Check if given image is sparse */
-static int is_sparse_image(void *image_addr)
+int is_sparse_image(void *image_addr)
 {
 	struct sparse_image_hdr *hdr = image_addr;
 
@@ -299,40 +309,9 @@ static backend_ret_t write_raw_image(struct image_part_details *img,
 	return BE_SUCCESS;
 }
 
-/***************************** GPT handling ***********************************/
-
-static GptData *alloc_gpt(BlockDev *bdev)
-{
-	GptData *gpt = malloc(sizeof(*gpt));
-
-	memset(gpt, 0, sizeof(*gpt));
-
-	gpt->sector_bytes = bdev->block_size;
-	gpt->streaming_drive_sectors = bdev->block_count;
-	gpt->gpt_drive_sectors = bdev->block_count;
-
-	if (AllocAndReadGptData(bdev, gpt) != 0) {
-		free(gpt);
-		return NULL;
-	}
-
-	if (GptInit(gpt) != GPT_SUCCESS) {
-		free(gpt);
-		gpt = NULL;
-	}
-
-	return gpt;
-}
-
-static void free_gpt(BlockDev *bdev, GptData *gpt)
-{
-	WriteAndFreeGptData(bdev, gpt);
-	free(gpt);
-}
-
 /********************** Image Partition handling ******************************/
 
-static struct part_info *get_part_info(const char *name)
+struct part_info *get_part_info(const char *name)
 {
 	int i;
 
@@ -501,10 +480,10 @@ backend_ret_t backend_write_partition(const char *name, void *image_addr,
 		return ret;
 
 	if (is_sparse_image(image_addr)) {
-		BE_LOG("Writing sparse image...\n");
+		BE_LOG("Writing sparse image to %s...\n", name);
 		ret = write_sparse_image(&img, image_addr, image_size);
 	} else {
-		BE_LOG("Writing raw image...\n");
+		BE_LOG("Writing raw image to %s...\n", name);
 		ret = write_raw_image(&img, image_addr, image_size);
 	}
 
@@ -598,6 +577,24 @@ uint64_t backend_get_bdev_size_bytes(const char *name)
 
 	BlockDev *bdev = bdev_entry->bdev;
 	uint64_t size = (uint64_t)bdev->block_count * bdev->block_size;
+
+	return size;
+}
+
+uint64_t backend_get_bdev_size_blocks(const char *name)
+{
+	if (backend_do_init() != BE_SUCCESS)
+		return 0;
+
+	struct bdev_info *bdev_entry;
+
+	/* Get bdev info from board-specific bdev table */
+	bdev_entry = get_bdev_info(name);
+	if (bdev_entry == NULL)
+		return 0;
+
+	BlockDev *bdev = bdev_entry->bdev;
+	uint64_t size = (uint64_t)bdev->block_count;
 
 	return size;
 }

@@ -18,18 +18,23 @@
  */
 
 #include <arch/cpu.h>
+
 #include "base/init_funcs.h"
-#include "drivers/flash/spi.h"
-#include "drivers/bus/usb/usb.h"
+#include "boot/fit.h"
+#include "drivers/bus/i2c/imgtec_i2c.h"
 #include "drivers/bus/spi/imgtec_spfi.h"
+#include "drivers/bus/usb/usb.h"
+#include "drivers/flash/spi.h"
+#include "drivers/gpio/gpio.h"
+#include "drivers/gpio/imgtec_pistachio.h"
 #include "drivers/storage/mtd/mtd.h"
+#include "drivers/storage/mtd/nand/spi_nand.h"
 #include "drivers/storage/mtd/stream.h"
 #include "drivers/storage/spi_gpt.h"
-#include "drivers/storage/mtd/nand/spi_nand.h"
-#include "drivers/gpio/gpio.h"
+#include "drivers/tpm/slb9635_i2c.h"
+#include "drivers/tpm/tpm.h"
+#include "vboot/callbacks/nvstorage_flash.h"
 #include "vboot/util/flag.h"
-#include "drivers/gpio/imgtec_pistachio.h"
-#include "boot/fit.h"
 
 #define SPIM_INTERFACE	1
 #define NOR_CS		0
@@ -85,6 +90,28 @@ static struct board_conf *pick_board_config(void)
 	return board_config;
 }
 
+static const DtPathMap mac_maps[] = {
+	{ 1, "ethernet@18140000/mac-address" },
+	{ 1, "wifi@18480000/mac-address-0" },
+	{ 1, "wifi@18480000/mac-address-1" },
+	{}
+};
+
+static const DtPathMap calibration_maps[] = {
+	{ 1, "wifi@18480000/calibration-data", "wifi_calibration0" },
+	{}
+};
+
+static int fix_device_tree(DeviceTreeFixup *fixup, DeviceTree *tree)
+{
+	return dt_set_mac_addresses(tree, mac_maps) |
+		dt_set_wifi_calibration(tree, calibration_maps);
+}
+
+static DeviceTreeFixup urara_dt_fixup = {
+	.fixup = fix_device_tree
+};
+
 static int board_setup(void)
 {
 	ImgSpi *spfi;
@@ -92,6 +119,7 @@ static int board_setup(void)
 	SpiGptCtrlr *virtual_dev;
 	UsbHostController *usb_host;
 	ImgGpio *img_gpio;
+	ImgI2c *img_i2c;
 	struct board_conf *conf = pick_board_config();
 
 	flag_install(FLAG_DEVSW, new_gpio_low());
@@ -116,7 +144,13 @@ static int board_setup(void)
 				  "spi@18101000/flash@1");
 	list_insert_after(&virtual_dev->block_ctrlr.list_node,
 				&fixed_block_dev_controllers);
+	img_i2c = new_imgtec_i2c(conf->i2c_interface, 100000, 33333333);
+	tpm_set_ops(&new_slb9635_i2c(&(img_i2c->ops), 0x20)->base.ops);
+
 	fit_set_compat(conf->compatible);
+
+	list_insert_after(&urara_dt_fixup.list_node, &device_tree_fixups);
+
 	return 0;
 }
 

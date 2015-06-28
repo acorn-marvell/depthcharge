@@ -24,6 +24,7 @@
 #include <libpayload.h>
 #include <stdint.h>
 #include <vboot_api.h>
+#include <vboot_nvstorage.h>
 
 #include "base/timestamp.h"
 #include "boot/commandline.h"
@@ -56,16 +57,17 @@ int vboot_init(void)
 	int dev_switch = flag_fetch(FLAG_DEVSW);
 	int rec_switch = flag_fetch(FLAG_RECSW);
 	int wp_switch = flag_fetch(FLAG_WPSW);
+	int lid_switch = flag_fetch(FLAG_LIDSW);
 	int oprom_loaded = 0;
 	if (CONFIG_OPROM_MATTERS)
 		oprom_loaded = flag_fetch(FLAG_OPROM);
 
 
-	printf("%s:%d dev %d, rec %d, wp %d, oprom %d\n",
+	printf("%s:%d dev %d, rec %d, wp %d, lid %d, oprom %d\n",
 	       __func__, __LINE__, dev_switch, rec_switch,
-	       wp_switch, oprom_loaded);
+	       wp_switch, lid_switch, oprom_loaded);
 
-	if (dev_switch < 0 || rec_switch < 0 ||
+	if (dev_switch < 0 || rec_switch < 0 || lid_switch < 0 ||
 	    wp_switch < 0 || oprom_loaded < 0) {
 		// An error message should have already been printed.
 		return 1;
@@ -73,6 +75,12 @@ int vboot_init(void)
 
 	// Decide what flags to pass into VbInit.
 	iparams.flags |= VB_INIT_FLAG_RO_NORMAL_SUPPORT;
+	/* Don't fail the boot process when lid switch is closed.
+	 * The OS might not have enough time to log success before
+	 * shutting down.
+	 */
+	if (!lid_switch)
+		iparams.flags |= VB_INIT_FLAG_NOFAIL_BOOT;
 	if (dev_switch)
 		iparams.flags |= VB_INIT_FLAG_DEV_SWITCH_ON;
 	if (rec_switch)
@@ -104,6 +112,25 @@ int vboot_init(void)
 int vboot_in_recovery(void)
 {
 	return vboot_out_flags & VB_INIT_OUT_ENABLE_RECOVERY;
+}
+
+int vboot_in_developer(void)
+{
+	return vboot_out_flags & VB_INIT_OUT_ENABLE_DEVELOPER;
+}
+
+void vboot_update_recovery(uint32_t request)
+{
+	VbNvContext context;
+
+	VbExNvStorageRead(context.raw);
+	VbNvSetup(&context);
+
+	VbNvSet(&context, VBNV_RECOVERY_REQUEST, request);
+
+	VbNvTeardown(&context);
+	if (context.raw_changed)
+		VbExNvStorageWrite(context.raw);
 }
 
 int vboot_do_init_out_flags(uint32_t out_flags)
@@ -188,8 +215,6 @@ int vboot_select_firmware(void)
 
 int vboot_select_and_load_kernel(void)
 {
-	static char cmd_line_buf[2 * CmdLineSize];
-
 	VbSelectAndLoadKernelParams kparams = {
 		.kernel_buffer = (void *)&_kernel_start,
 		.kernel_buffer_size = &_kernel_end - &_kernel_start
@@ -214,35 +239,43 @@ int vboot_select_and_load_kernel(void)
 			return 1;
 	}
 
-	timestamp_add_now(TS_CROSSYSTEM_DATA);
+	vboot_boot_kernel(&kparams);
 
+	return 1;
+}
+
+void vboot_boot_kernel(VbSelectAndLoadKernelParams *kparams)
+{
+	static char cmd_line_buf[2 * CmdLineSize];
 	struct boot_info bi;
+
+	timestamp_add_now(TS_CROSSYSTEM_DATA);
 
 	memset(&bi, 0, sizeof(bi));
 
-	if (fill_boot_info(&bi, &kparams) == -1) {
+	if (fill_boot_info(&bi, kparams) == -1) {
 		printf("ERROR!!! Unable to parse boot info\n");
 		goto fail;
 	}
 
-	BlockDev *bdev = (BlockDev *)kparams.disk_handle;
+	BlockDev *bdev = (BlockDev *)kparams->disk_handle;
 
 	struct commandline_info info = {
 		.devnum = 0,
-		.partnum = kparams.partition_number + 1,
-		.guid = kparams.partition_guid,
+		.partnum = kparams->partition_number + 1,
+		.guid = kparams->partition_guid,
 		.external_gpt = bdev->external_gpt,
 	};
 
 	if (bi.cmd_line) {
 		if (commandline_subst(bi.cmd_line, cmd_line_buf,
 				      sizeof(cmd_line_buf), &info))
-			return 1;
+			return;
 		bi.cmd_line = cmd_line_buf;
 	}
 
 	if (crossystem_setup())
-		return 1;
+		return;
 
 	boot(&bi);
 
@@ -253,6 +286,4 @@ fail:
 	 */
 	if (CONFIG_KERNEL_LEGACY)
 		legacy_boot(bi.kernel, cmd_line_buf);
-
-	return 1;
 }

@@ -258,8 +258,7 @@ static int tegra_spi_dma_config(TegraApbDmaChannel *dma, void *ahb_ptr,
 
 static void wait_for_transfer(TegraSpiRegs *regs, uint32_t packets)
 {
-	while ((readl(&regs->trans_status) & SPI_STATUS_BLOCK_COUNT) < packets)
-	{}
+	while ((readl(&regs->trans_status) & SPI_STATUS_RDY) != SPI_STATUS_RDY);
 }
 
 static int tegra_spi_dma_transfer(TegraSpi *bus, void *in, const void *out,
@@ -388,27 +387,27 @@ static int tegra_spi_pio_transfer(TegraSpi *bus, uint8_t *in,
 		out_bytes--;
 	}
 
+	/*
+	 * Need to stabilize other reg bit before GO bit set.
+	 *
+	 * From IAS:
+	 * For successful operation at various freq combinations, min of 4-5
+	 * spi_clk cycle delay might be required before enabling PIO or DMA bit.
+	 * This is needed to overcome the MCP between core and pad_macro.
+	 * The worst case delay calculation can be done considering slowest
+	 * qspi_clk as 1 MHz. based on that 1 us delay should be enough before
+	 * enabling pio or dma.
+	 */
+	udelay(2);
+
 	writel(command1 | SPI_CMD1_GO, &regs->command1);
+
+	/* Need to wait a few cycles before command1 register is read */
+	udelay(1);
+
 	// Make sure the write to command1 completes.
 	readl(&regs->command1);
 	wait_for_transfer(regs, size);
-
-	uint32_t in_bytes = in ? size : 0;
-
-	// BLOCK_COUNT does not seem to always reflect the number of packets
-	// available in the FIFO. To avoid an underrun wait until
-	// RX_FIFO_FULL_COUNT shows the value we expect.
-	// See: chrome-os-partner:24215
-	while ((readl(&regs->fifo_status) &
-	        SPI_FIFO_STATUS_RX_FIFO_FULL_COUNT_MASK) >>
-	       SPI_FIFO_STATUS_RX_FIFO_FULL_COUNT_SHIFT != in_bytes)
-		;
-
-	while (in_bytes) {
-		uint32_t data = readl(&regs->rx_fifo);
-		*in++ = data;
-		in_bytes--;
-	}
 
 	command1 &= ~(SPI_CMD1_TX_EN | SPI_CMD1_RX_EN);
 	writel(command1, &regs->command1);
@@ -418,6 +417,13 @@ static int tegra_spi_pio_transfer(TegraSpi *bus, uint8_t *in,
 		printf("%s: Error in fifo status %#x.\n", __func__, status);
 		clear_fifo_status(regs);
 		return -1;
+	}
+
+	uint32_t in_bytes = in ? size : 0;
+	while (in_bytes) {
+		uint32_t data = readl(&regs->rx_fifo);
+		*in++ = data;
+		in_bytes--;
 	}
 
 	return 0;

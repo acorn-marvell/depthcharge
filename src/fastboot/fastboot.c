@@ -21,14 +21,19 @@
  */
 
 #include <libpayload.h>
+#include <vboot_api.h>
 
+#include "config.h"
 #include "drivers/video/coreboot_fb.h"
 #include "drivers/video/display.h"
 #include "fastboot/backend.h"
+#include "fastboot/capabilities.h"
 #include "fastboot/fastboot.h"
 #include "fastboot/udc.h"
 #include "vboot/boot.h"
 #include "vboot/boot_policy.h"
+#include "vboot/stages.h"
+#include "vboot/util/commonparams.h"
 
 #define FASTBOOT_DEBUG
 
@@ -45,10 +50,49 @@
 static void *image_addr;
 static size_t image_size;
 
+static void print_string(const char *str)
+{
+	int str_len = strlen(str);
+	while (str_len--) {
+		if (*str == '\n')
+			video_console_putchar('\r');
+		video_console_putchar(*str++);
+	}
+}
+
+/*
+ * TODO(furquan): Get rid of this once the vboot flows and fastboot interactions
+ * are finalized.
+ */
+static void fb_print_on_screen(const char *msg)
+{
+	unsigned int rows, cols;
+
+	if (display_init())
+		return;
+
+	if (backlight_update(1))
+		return;
+
+	video_init();
+	video_console_cursor_enable(0);
+
+	video_get_rows_cols(&rows, &cols);
+	video_console_set_cursor((cols - strlen(msg)) / 2, rows / 2);
+
+	print_string(msg);
+}
+
 /********************* Stubs *************************/
 
 int  __attribute__((weak)) board_should_enter_device_mode(void)
 {
+	return 0;
+}
+
+int __attribute__((weak)) board_user_confirmation(void)
+{
+	/* Default weak implementation. Returns 0 = no user confirmation. */
 	return 0;
 }
 
@@ -96,6 +140,9 @@ static void fb_execute_send(struct fb_cmd *cmd)
 		[FB_INFO] = "INFO",
 		[FB_OKAY] = "OKAY",
 	};
+
+	if (cmd->type == FB_NONE)
+		return;
 
 	fb_send(&cmd->output, prefix[cmd->type]);
 }
@@ -176,6 +223,11 @@ static inline void fb_free_string(char *dst)
 	free(dst);
 }
 
+static inline int fb_device_unlocked(void)
+{
+	return vboot_in_developer();
+}
+
 static int fb_read_var(struct fb_cmd *cmd, fb_getvar_t var)
 {
 	size_t input_len = fb_buffer_length(&cmd->input);
@@ -185,6 +237,11 @@ static int fb_read_var(struct fb_cmd *cmd, fb_getvar_t var)
 	switch (var) {
 	case FB_VERSION:
 		fb_add_string(output, FB_VERSION_STRING, NULL);
+		break;
+
+	case FB_DWNLD_SIZE:
+		/* Max download size set to half of heap size */
+		fb_add_number(output, "0x%x", CONFIG_FASTBOOT_HEAP_SIZE/2);
 		break;
 
 	case FB_PART_SIZE: {
@@ -249,6 +306,20 @@ static int fb_read_var(struct fb_cmd *cmd, fb_getvar_t var)
 		fb_add_number(output, "%llu", bdev_size);
 		break;
 	}
+	case FB_SECURE: {
+		if (fb_cap_func_allowed(FB_ID_FLASH) == FB_CAP_FUNC_NOT_ALLOWED)
+			fb_add_string(output, "yes", NULL);
+		else
+			fb_add_string(output, "no", NULL);
+		break;
+	}
+	case FB_UNLOCKED: {
+		if (fb_device_unlocked())
+			fb_add_string(output, "yes", NULL);
+		else
+			fb_add_string(output, "no", NULL);
+		break;
+	}
 	default:
 		goto board_read;
 	}
@@ -311,6 +382,7 @@ static const struct {
 	{ NAME_NO_ARGS("max-download-size"), FB_DWNLD_SIZE},
 	{ NAME_ARGS("partition-type", ':'), FB_PART_TYPE},
 	{ NAME_ARGS("partition-size", ':'), FB_PART_SIZE},
+	{ NAME_NO_ARGS("unlocked"), FB_UNLOCKED},
 	/*
 	 * OEM specific :
 	 * Spec says names starting with lowercase letter are reserved.
@@ -337,8 +409,8 @@ static fb_ret_type fb_getvar_single(struct fb_cmd *cmd)
 	}
 
 	if (match_len == 0) {
-		fb_add_string(&cmd->output, "nonexistent", NULL);
-		cmd->type = FB_FAIL;
+		fb_add_string(&cmd->output, "unknown variable", NULL);
+		cmd->type = FB_OKAY;
 		return FB_SUCCESS;
 	}
 
@@ -352,14 +424,14 @@ static fb_ret_type fb_getvar_single(struct fb_cmd *cmd)
 	 * able to read variable value. Thus, send message type to be sent back
 	 * to host as FAIL.
 	 */
-	cmd->type = FB_FAIL;
+	cmd->type = FB_OKAY;
 
 	/*
 	 * If no new information was added by board about the failure, put in
 	 * nonexistent string.
 	 */
 	if (fb_buffer_length(&cmd->output) == out_len)
-		fb_add_string(&cmd->output, "nonexistent", NULL);
+		fb_add_string(&cmd->output, "unknown variable", NULL);
 
 	return FB_SUCCESS;
 }
@@ -529,16 +601,26 @@ static void alloc_image_space(size_t bytes)
  * Desc: Download data from host and store it in image_addr
  *
  */
-static void fb_recv_data(struct fb_cmd *cmd)
+static int fb_recv_data(struct fb_cmd *cmd)
 {
 	size_t curr_len = 0;
 
 	while (curr_len < image_size) {
 		void *curr = (uint8_t *)image_addr + curr_len;
-		curr_len += usb_gadget_recv(curr, image_size - curr_len);
+
+		size_t ret = usb_gadget_recv(curr, image_size - curr_len);
+
+		if (ret == 0) {
+			curr_len = 0;
+			cmd->type = FB_NONE;
+			return curr_len;
+		}
+
+		curr_len += ret;
 	}
 
 	cmd->type = FB_OKAY;
+	return curr_len;
 }
 
 /*
@@ -577,7 +659,10 @@ static fb_ret_type fb_download(struct fb_cmd *cmd)
 	fb_add_number(output, "%08lx", bytes);
 	fb_execute_send(cmd);
 
-	fb_recv_data(cmd);
+	if (fb_recv_data(cmd) == 0) {
+		FB_LOG("Freeing memory.. failed to download data\n");
+		free_image_space();
+	}
 
 	return FB_SUCCESS;
 }
@@ -604,6 +689,16 @@ const char *backend_error_string[] = {
 
 static fb_ret_type fb_erase(struct fb_cmd *cmd)
 {
+	/* Check if there is an override. If yes, do not erase partition. */
+	if (fb_check_gbb_override()) {
+		FB_LOG("skipping erase operation\n");
+		cmd->type = FB_INFO;
+		fb_add_string(&cmd->output, "skipping erase", NULL);
+		fb_execute_send(cmd);
+		cmd->type = FB_OKAY;
+		return FB_SUCCESS;
+	}
+
 	backend_ret_t ret;
 	struct fb_buffer *input = &cmd->input;
 	size_t len = fb_buffer_length(input);
@@ -613,6 +708,7 @@ static fb_ret_type fb_erase(struct fb_cmd *cmd)
 	cmd->type = FB_INFO;
 	fb_add_string(&cmd->output, "erasing flash", NULL);
 	fb_execute_send(cmd);
+	fb_print_on_screen("Erasing flash....\n");
 
 	cmd->type = FB_OKAY;
 
@@ -644,6 +740,7 @@ static fb_ret_type fb_flash(struct fb_cmd *cmd)
 	cmd->type = FB_INFO;
 	fb_add_string(&cmd->output, "writing flash", NULL);
 	fb_execute_send(cmd);
+	fb_print_on_screen("Writing flash....\n");
 
 	struct fb_buffer *input = &cmd->input;
 	size_t len = fb_buffer_length(input);
@@ -652,7 +749,13 @@ static fb_ret_type fb_flash(struct fb_cmd *cmd)
 	cmd->type = FB_OKAY;
 
 	char *partition = fb_get_string(data, len);
-	ret = backend_write_partition(partition, image_addr, image_size);
+
+	ret = board_write_partition(partition, image_addr, image_size);
+
+	if (ret == BE_NOT_HANDLED)
+		ret = backend_write_partition(partition, image_addr,
+					      image_size);
+
 	fb_free_string(partition);
 
 	if (ret != BE_SUCCESS) {
@@ -666,17 +769,14 @@ static fb_ret_type fb_flash(struct fb_cmd *cmd)
 }
 
 /*
- * TODO(furquan): Change this function once verified boot stuff is
- * resolved. Currently, we boot unsigned kernel bootimg from memory. However, we
- * will have to update this so that we check the signature on the image using
- * recovery key. Also, need to ensure that fastboot boot command is not enabled
- * by default on entering recovery mode. It should be enabled only after some
- * flag VB_ALLOW_FB_BOOT is set by user.
+ * fb_boot allows user to send a signed recovery image from host directly to
+ * device memory and boot from it. It calls vboot function
+ * VbVerifyMemoryBootImage to check if the given image is okay to boot from
+ * memory in current mode.
  */
 static fb_ret_type fb_boot(struct fb_cmd *cmd)
 {
 	VbSelectAndLoadKernelParams kparams;
-	struct boot_info bi;
 
 	cmd->type = FB_FAIL;
 
@@ -685,18 +785,36 @@ static fb_ret_type fb_boot(struct fb_cmd *cmd)
 		return FB_SUCCESS;
 	}
 
-	kparams.kernel_buffer = image_addr;
-	kparams.flags = KERNEL_IMAGE_BOOTIMG;
+	size_t kernel_size;
+	void *kernel = bootimg_get_kernel_ptr(image_addr, image_size);
 
-	if (fill_boot_info(&bi, &kparams)) {
-		fb_add_string(&cmd->output, "bootimg parse failed", NULL);
+	if (kernel == NULL) {
+		fb_add_string(&cmd->output, "bootimg format not recognized",
+			      NULL);
 		return FB_SUCCESS;
 	}
+
+	kernel_size = (uintptr_t)kernel - (uintptr_t)image_addr;
+
+	if (kernel_size >= image_size) {
+		fb_add_string(&cmd->output, "bootimg kernel not found", NULL);
+		return FB_SUCCESS;
+	}
+
+	kernel_size = image_size - kernel_size;
+
+	if (VbVerifyMemoryBootImage(&cparams, &kparams, kernel, kernel_size) !=
+	    VBERROR_SUCCESS) {
+		fb_add_string(&cmd->output, "image verification failed", NULL);
+		return FB_SUCCESS;
+	}
+
+	kparams.flags = KERNEL_IMAGE_BOOTIMG;
 
 	cmd->type = FB_OKAY;
 	fb_execute_send(cmd);
 
-	boot(&bi);
+	vboot_boot_kernel(&kparams);
 
 	/* We should never reach here, if boot successful. */
 	return FB_SUCCESS;
@@ -730,23 +848,86 @@ static fb_ret_type fb_powerdown(struct fb_cmd *cmd)
 	return FB_POWEROFF;
 }
 
+static int fb_user_confirmation()
+{
+	/* If GBB is set, we don't need to get user confirmation. */
+	if (fb_check_gbb_override())
+		return 1;
+
+	return board_user_confirmation();
+}
+
+static fb_ret_type fb_lock(struct fb_cmd *cmd)
+{
+	cmd->type = FB_FAIL;
+
+	if (!fb_user_confirmation()) {
+		FB_LOG("User cancelled\n");
+		fb_add_string(&cmd->output, "User cancelled request", NULL);
+		return FB_SUCCESS;
+	}
+
+	FB_LOG("Locking device\n");
+	if (!fb_device_unlocked()) {
+		fb_add_string(&cmd->output, "Device already locked", NULL);
+		return FB_SUCCESS;
+	}
+
+	if (VbLockDevice() != VBERROR_SUCCESS) {
+		fb_add_string(&cmd->output, "Lock device failed", NULL);
+		return FB_SUCCESS;
+	}
+
+	cmd->type = FB_OKAY;
+	return FB_REBOOT;
+}
+
+static fb_ret_type fb_unlock(struct fb_cmd *cmd)
+{
+	cmd->type = FB_FAIL;
+
+	if (!fb_user_confirmation()) {
+		FB_LOG("User cancelled\n");
+		fb_add_string(&cmd->output, "User cancelled request", NULL);
+		return FB_SUCCESS;
+	}
+
+	FB_LOG("Unlocking device\n");
+	if (fb_device_unlocked()) {
+		fb_add_string(&cmd->output, "Device already unlocked", NULL);
+		return FB_SUCCESS;
+	}
+
+	if (VbUnlockDevice() != VBERROR_SUCCESS) {
+		fb_add_string(&cmd->output, "Unlock device failed", NULL);
+		return FB_SUCCESS;
+	}
+
+	cmd->type = FB_OKAY;
+	return FB_REBOOT;
+}
+
 /************** Command Function Table *****************/
 struct fastboot_func {
 	struct name_string name;
+	fb_func_id_t id;
 	fb_ret_type (*fn)(struct fb_cmd *cmd);
 };
 
 const struct fastboot_func fb_func_table[] = {
-	{ NAME_ARGS("getvar", ':'), fb_getvar},
-	{ NAME_ARGS("download", ':'), fb_download},
-	{ NAME_ARGS("verify", ':'), fb_verify},
-	{ NAME_ARGS("flash", ':'), fb_flash},
-	{ NAME_ARGS("erase", ':'), fb_erase},
-	{ NAME_NO_ARGS("boot"), fb_boot},
-	{ NAME_NO_ARGS("continue"), fb_continue},
-	{ NAME_NO_ARGS("reboot"), fb_reboot},
-	{ NAME_NO_ARGS("reboot-bootloader"), fb_reboot_bootloader},
-	{ NAME_NO_ARGS("powerdown"), fb_powerdown},
+	{ NAME_ARGS("getvar", ':'), FB_ID_GETVAR, fb_getvar},
+	{ NAME_ARGS("download", ':'), FB_ID_DOWNLOAD, fb_download},
+	{ NAME_ARGS("verify", ':'), FB_ID_VERIFY, fb_verify},
+	{ NAME_ARGS("flash", ':'), FB_ID_FLASH, fb_flash},
+	{ NAME_ARGS("erase", ':'), FB_ID_ERASE, fb_erase},
+	{ NAME_NO_ARGS("boot"), FB_ID_BOOT, fb_boot},
+	{ NAME_NO_ARGS("continue"), FB_ID_CONTINUE, fb_continue},
+	{ NAME_NO_ARGS("reboot"), FB_ID_REBOOT, fb_reboot},
+	{ NAME_NO_ARGS("reboot-bootloader"), FB_ID_REBOOT_BOOTLOADER,
+	  fb_reboot_bootloader},
+	{ NAME_NO_ARGS("powerdown"), FB_ID_POWERDOWN, fb_powerdown},
+	{ NAME_NO_ARGS("oem unlock"), FB_ID_UNLOCK, fb_unlock},
+	{ NAME_NO_ARGS("oem lock"), FB_ID_LOCK, fb_lock},
 };
 
 /************** Protocol Handler ************************/
@@ -789,6 +970,15 @@ static fb_ret_type fastboot_proto_handler(struct fb_cmd *cmd)
 		return FB_SUCCESS;
 	}
 
+	/* Check if this function is allowed to be executed */
+	if (fb_cap_func_allowed(fb_func_table[i].id) ==
+	    FB_CAP_FUNC_NOT_ALLOWED) {
+		FB_LOG("Unsupported command\n");
+		fb_add_string(out_buff, "unsupported command", NULL);
+		cmd->type = FB_FAIL;
+		return FB_SUCCESS;
+	}
+
 	fb_buffer_pull(in_buff, match_len);
 
 	return fb_func_table[i].fn(cmd);
@@ -801,40 +991,6 @@ static void print_input(struct fb_cmd *cmd)
 	size_t len = fb_buffer_length(&cmd->input);
 	printf("Received: %.*s\n", (int)len, pkt);
 #endif
-}
-
-static void print_string(const char *str)
-{
-	int str_len = strlen(str);
-	while (str_len--) {
-		if (*str == '\n')
-			video_console_putchar('\r');
-		video_console_putchar(*str++);
-	}
-}
-
-/*
- * TODO(furquan): Get rid of this once the vboot flows and fastboot interactions
- * are finalized.
- */
-static void fb_print_on_screen()
-{
-	const char *msg = "Entered fastboot mode";
-	unsigned int rows, cols;
-
-	if (display_init())
-		return;
-
-	if (backlight_update(1))
-		return;
-
-	video_init();
-	video_console_cursor_enable(0);
-
-	video_get_rows_cols(&rows, &cols);
-	video_console_set_cursor((cols - strlen(msg)) / 2, rows / 2);
-
-	print_string(msg);
 }
 
 /*
@@ -871,7 +1027,6 @@ fb_ret_type device_mode_enter(void)
 	fb_buffer_push(&cmd.output, PREFIX_LEN);
 
 	FB_LOG("********** Entered fastboot mode *****************\n");
-	fb_print_on_screen();
 
 	/*
 	 * Keep looping until we get boot, reboot or poweroff command from host.
@@ -879,12 +1034,29 @@ fb_ret_type device_mode_enter(void)
 	do {
 		size_t len;
 
+		fb_print_on_screen("Waiting for fastboot command....\n");
 		/* Receive a packet from the host */
 		len = usb_gadget_recv(pkt, MAX_COMMAND_LENGTH);
+
+		if (len == 0) {
+			/*
+			 * No packet received from host. We should reach here
+			 * either because packet_recv timed out or the usb
+			 * connection with host was disconnected. Continue
+			 * waiting for fastboot command.
+			 *
+			 * Update ret to FB_SUCCESS so that we don't break out
+			 * of the loop.
+			 */
+			ret = FB_SUCCESS;
+			continue;
+		}
 
 		fb_buffer_push(&cmd.input, len);
 
 		print_input(&cmd);
+
+		fb_print_on_screen("Processing fastboot command....\n");
 
 		/* Process the packet as per fastboot protocol */
 		ret = fastboot_proto_handler(&cmd);

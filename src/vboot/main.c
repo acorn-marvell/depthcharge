@@ -22,10 +22,12 @@
  */
 
 #include <libpayload.h>
+#include <vboot_struct.h>
 
 #include "arch/sign_of_life.h"
 #include "base/init_funcs.h"
 #include "base/timestamp.h"
+#include "boot/bcb.h"
 #include "config.h"
 #include "debug/cli/common.h"
 #include "drivers/input/input.h"
@@ -33,6 +35,7 @@
 #include "vboot/fastboot.h"
 #include "vboot/stages.h"
 #include "vboot/util/commonparams.h"
+#include "vboot/util/flag.h"
 #include "vboot/util/vboot_handoff.h"
 #include "vboot/boot.h"
 
@@ -57,6 +60,27 @@ static int vboot_init_handoff()
 	}
 
 	vboot_handoff = lib_sysinfo.vboot_handoff;
+
+	/* If the lid is closed, don't count down the boot
+	 * tries for updates, since the OS will shut down
+	 * before it can register success.
+	 *
+	 * VbInit was already called in coreboot, so we need
+	 * to update the vboot internal flags ourself.
+	 */
+	int lid_switch = flag_fetch(FLAG_LIDSW);
+	if (!lid_switch) {
+		VbSharedDataHeader *vdat;
+		int vdat_size;
+
+		if (find_common_params((void **)&vdat, &vdat_size) != 0)
+			vdat = NULL;
+
+		/* We need something to work with */
+		if (vdat != NULL)
+			/* Tell kernel selection to not count down */
+			vdat->flags |= VBSD_NOFAIL_BOOT;
+	}
 
 	return vboot_do_init_out_flags(vboot_handoff->init_params.out_flags);
 }
@@ -99,6 +123,10 @@ int main(void)
                 halt();
 
 	vboot_try_fastboot();
+
+	/* Handle BCB command, if supported. */
+	if (CONFIG_BCB_SUPPORT)
+		bcb_handle_command();
 
 	timestamp_add_now(TS_VB_SELECT_AND_LOAD_KERNEL);
 

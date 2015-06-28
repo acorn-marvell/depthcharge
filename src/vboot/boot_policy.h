@@ -86,4 +86,12 @@ int set_boot_policy(const struct boot_policy *policy, size_t count);
  */
 int fill_boot_info(struct boot_info *bi, VbSelectAndLoadKernelParams *kparams);
 
+/*
+ * Given a bootimg, this routine returns pointer to the start of the kernel
+ * image. If the bootimg does not have the right magic value in the header, it
+ * returns NULL. It also returns NULL if image_size is not big enough to hold
+ * kernel as per the details in bootimg hdr.
+ */
+void *bootimg_get_kernel_ptr(void *img, size_t image_size);
+
 #endif /* __VBOOT_BOOT_POLICY_H__ */

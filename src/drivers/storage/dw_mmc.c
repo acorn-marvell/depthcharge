@@ -376,6 +376,8 @@ static int dwmci_update(BlockDevCtrlrOps *me)
 			host->mmc.media->dev.removable = 1;
 			host->mmc.media->dev.ops.read = &block_mmc_read;
 			host->mmc.media->dev.ops.write = &block_mmc_write;
+			host->mmc.media->dev.ops.fill_write =
+				&block_mmc_fill_write;
 			host->mmc.media->dev.ops.new_stream =
 						&new_simple_stream;
 			list_insert_after(&host->mmc.media->dev.list_node,
@@ -393,6 +395,8 @@ static int dwmci_update(BlockDevCtrlrOps *me)
 		host->mmc.media->dev.removable = 0;
 		host->mmc.media->dev.ops.read = &block_mmc_read;
 		host->mmc.media->dev.ops.write = &block_mmc_write;
+		host->mmc.media->dev.ops.fill_write =
+			&block_mmc_fill_write;
 		host->mmc.media->dev.ops.new_stream = &new_simple_stream;
 		list_insert_after(&host->mmc.media->dev.list_node,
 				  &fixed_block_devices);
@@ -402,6 +406,13 @@ static int dwmci_update(BlockDevCtrlrOps *me)
 	return 0;
 }
 
+static int dwmmc_is_bdev_owned(BlockDevCtrlrOps *me, BlockDev *bdev)
+{
+	DwmciHost *host = container_of(me, DwmciHost, mmc.ctrlr.ops);
+
+	return (&host->mmc.media->dev == bdev);
+}
+
 DwmciHost *new_dwmci_host(uintptr_t ioaddr, uint32_t src_hz,
 				int bus_width, int removable,
 				GpioOps *card_detect, uint32_t clksel_val)
@@ -409,6 +420,8 @@ DwmciHost *new_dwmci_host(uintptr_t ioaddr, uint32_t src_hz,
 	DwmciHost *ctrlr = xzalloc(sizeof(*ctrlr));
 
 	ctrlr->mmc.ctrlr.ops.update = &dwmci_update;
+	ctrlr->mmc.ctrlr.ops.is_bdev_owned = &dwmmc_is_bdev_owned;
+
 	ctrlr->mmc.ctrlr.need_update = 1;
 
 	ctrlr->mmc.voltages = MMC_VDD_32_33 | MMC_VDD_33_34 | MMC_VDD_165_195;

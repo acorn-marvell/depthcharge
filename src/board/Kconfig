@@ -40,6 +40,9 @@ endif
 if BOARD = "falco"
 source src/board/falco/Kconfig
 endif
+if BOARD = "foster"
+source src/board/foster/Kconfig
+endif
 if BOARD = "fox_wtm2"
 source src/board/fox_wtm2/Kconfig
 endif
@@ -114,6 +117,9 @@ source src/board/veyron_pinky/Kconfig
 endif
 if BOARD = "veyron_rialto"
 source src/board/veyron_rialto/Kconfig
+endif
+if BOARD = "veyron_shark"
+source src/board/veyron_shark/Kconfig
 endif
 if BOARD = "veyron_speedy"
 source src/board/veyron_speedy/Kconfig

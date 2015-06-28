@@ -53,17 +53,66 @@
 /* FMAP descriptor of the NVRAM area */
 static FmapArea nvram_area_descriptor;
 
-/* Pointer to the NVRAM area in the flash mirror buffer. */
-static uint8_t *nvram_area_in_flash;
-
 /* Offset of the actual NVRAM blob offset in the NVRAM block. */
 static int nvram_blob_offset;
 
 /* Local cache of the NVRAM blob. */
-static uint8_t nvram_cache[CONFIG_NV_STORAGE_FLASH_BLOB_SIZE];
+static uint8_t nvram_cache[VBNV_BLOCK_SIZE];
+
+static int flash_nvram_init(void)
+{
+	int area_offset, prev_offset, size_limit;
+	static int vbnv_flash_is_initialized = 0;
+	uint8_t empty_nvram_block[sizeof(nvram_cache)];
+	uint8_t *nvram_area_in_flash;
+
+	if (vbnv_flash_is_initialized)
+		return 0;
+
+	if (fmap_find_area("RW_NVRAM", &nvram_area_descriptor)) {
+		printf("%s: failed to find NVRAM area\n", __func__);
+		return -1;
+	}
+
+	nvram_area_in_flash = flash_read(nvram_area_descriptor.offset,
+					 nvram_area_descriptor.size);
+	if (!nvram_area_in_flash) {
+		printf("%s: failed to read NVRAM area\n", __func__);
+		return -1;
+	}
+
+	/* Prepare an empty NVRAM block to compare against. */
+	memset(empty_nvram_block, 0xff, sizeof(empty_nvram_block));
+
+	/*
+	 * Now find the first completely empty NVRAM blob. The actual NVRAM
+	 * blob will be right below it.
+	 */
+	size_limit = nvram_area_descriptor.size - sizeof(nvram_cache);
+	for (area_offset = 0, prev_offset = 0;
+	     area_offset <= size_limit;
+	     area_offset += sizeof(nvram_cache)) {
+		if (!memcmp(nvram_area_in_flash + area_offset,
+			    empty_nvram_block,
+			    sizeof(nvram_cache)))
+			break;
+		prev_offset = area_offset;
+	}
+
+	memcpy(nvram_cache,
+	       nvram_area_in_flash + prev_offset,
+	       sizeof(nvram_cache));
+
+	nvram_blob_offset = prev_offset;
+	vbnv_flash_is_initialized = 1;
+	return 0;
+}
 
 VbError_t VbExNvStorageRead(uint8_t *buf)
 {
+	if (flash_nvram_init())
+		return VBERROR_UNKNOWN;
+
 	memcpy(buf, nvram_cache, sizeof(nvram_cache));
 	return VBERROR_SUCCESS;
 }
@@ -71,6 +120,9 @@ VbError_t VbExNvStorageRead(uint8_t *buf)
 VbError_t VbExNvStorageWrite(const uint8_t *buf)
 {
 	int i;
+
+	if (flash_nvram_init())
+		return VBERROR_UNKNOWN;
 
 	/* Bail out if there have been no changes. */
 	if (!memcmp(buf, nvram_cache, sizeof(nvram_cache)))
@@ -101,50 +153,6 @@ VbError_t VbExNvStorageWrite(const uint8_t *buf)
 
 	memcpy(nvram_cache, buf, sizeof(nvram_cache));
 	return VBERROR_SUCCESS;
-}
-
-int flash_nvram_init(void)
-{
-	int area_offset, i, prev_offset, size_limit;
-	uint8_t empty_nvram_block[sizeof(nvram_cache)];
-
-	if (fmap_find_area("RW_NVRAM", &nvram_area_descriptor)) {
-		printf("%s: failed to find NVRAM area\n", __func__);
-		return -1;
-	}
-
-	nvram_area_in_flash = flash_read(nvram_area_descriptor.offset,
-					 nvram_area_descriptor.size);
-	if (!nvram_area_in_flash) {
-		printf("%s: failed to read NVRAM area\n", __func__);
-		return -1;
-	}
-
-	/* Prepare an empty NVRAM block to compare against. */
-	for (i = 0; i < sizeof(nvram_cache); i++)
-		empty_nvram_block[i] = 0xff;
-
-	/*
-	 * Now find the first completely empty NVRAM blob. The actual NVRAM
-	 * blob will be right below it.
-	 */
-	size_limit = nvram_area_descriptor.size - sizeof(nvram_cache);
-	for (area_offset = 0, prev_offset = 0;
-	     area_offset <= size_limit;
-	     area_offset += sizeof(nvram_cache)) {
-		if (!memcmp(nvram_area_in_flash + area_offset,
-			    empty_nvram_block,
-			    sizeof(nvram_cache)))
-			break;
-		prev_offset = area_offset;
-	}
-
-	memcpy(nvram_cache,
-	       nvram_area_in_flash + prev_offset,
-	       sizeof(nvram_cache));
-
-	nvram_blob_offset = prev_offset;
-	return 0;
 }
 
 int nvstorage_flash_get_offet(void)

@@ -15,11 +15,15 @@
 ## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 ##
 
+depthcharge-$(CONFIG_ARCH_X86) += io.c
+depthcharge-$(CONFIG_ARCH_X86) += pci.c
 depthcharge-$(CONFIG_KERNEL_LEGACY) += boot.c
 depthcharge-y += audio.c
+depthcharge-y += cbfs.c
 depthcharge-y += command.c
 depthcharge-y += console_main.c
 depthcharge-y += display.c
+depthcharge-y += draw.c
 depthcharge-y += i2c.c
 depthcharge-y += memory.c
 depthcharge-y += printbuf.c
