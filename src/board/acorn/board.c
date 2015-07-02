@@ -29,6 +29,7 @@
 #include "drivers/tpm/tpm.h"
 #include "vboot/util/flag.h"
 #include "eth.h"
+#include "drivers/bus/spi/armada38x_spi.h"
 #include "drivers/storage/mtd/mtd.h"
 #include "drivers/storage/mtd/nand/armada38x_nand.h"
 #include "drivers/storage/mtd/stream.h"
@@ -160,6 +161,9 @@ static int board_setup(void)
 	new_armada38x_i2c(0, 0x4E);
 
         new_armada38x_nand();
+
+	SpiController *spi = new_spi(0,0);
+        flash_set_ops(&new_spi_flash(&spi->ops)->ops);
 	
 	return 0;
 }
