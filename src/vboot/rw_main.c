@@ -56,11 +56,6 @@ int main(void)
 
 	timestamp_add_now(TS_RW_VB_SELECT_AND_LOAD_KERNEL);
 
-	// Select a kernel and boot it.
-	if (storage_init()) {
-		storage_read(0, 100000, 0x20000000);
-	} else
- 		halt();
 	// We should never get here.
 	printf("Got to the end!\n");
 	halt();
