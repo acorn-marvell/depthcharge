@@ -190,14 +190,14 @@ static void tftp_callback(void)
 int tftp_read(void *dest, uip_ipaddr_t *server_ip, const char *bootfile,
 	uint32_t *size, uint32_t max_size)
 {
+	char mode[8];
+	strcpy(mode, "Octet");
 	// Build the read request packet.
 	uint16_t opcode = htonw(TftpReadReq);
 	int opcode_len = sizeof(opcode);
 
 	int name_len = strlen(bootfile) + 1;
-
-	const char mode[] = "Octet";
-	int mode_len = sizeof(mode);
+	int mode_len = strlen(mode) + 1;
 
 	int read_req_len = opcode_len + name_len + mode_len;
 	uint8_t *read_req = xmalloc(read_req_len);
