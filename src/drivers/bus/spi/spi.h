@@ -22,6 +22,8 @@
 
 typedef struct SpiOps
 {
+	uint32_t rom_size;
+        uint32_t sector_size;
 	int (*start)(struct SpiOps *me);
 	int (*transfer)(struct SpiOps *me, void *in, const void *out,
 			uint32_t size);
