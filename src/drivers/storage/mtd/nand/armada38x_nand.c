@@ -15,7 +15,7 @@
  * Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
  */
 #include "config.h"
-#include "strings.h"
+#include "libpayload.h"
 #include "nand.h"
 #include "armada38x_nand.h"
 #include "armada38x_nand_private.h"
@@ -1374,7 +1374,7 @@ static int armada38x_nand_update(MtdDevCtrlr *mtd)
 	mtd->dev->block_isbad = armada38x_nand_block_isbad;
 	mtd->dev->block_markbad = armada38x_nand_block_markbad;
 
-	g_info.page_shift = ffs(mtd->dev->writesize) - 1;
+	g_info.page_shift = __ffs(mtd->dev->writesize) - 1;
 	g_info.pagemask = (mtd->dev->size >> g_info.page_shift) - 1;
 	g_info.initialized = 1;
 	return 0;
