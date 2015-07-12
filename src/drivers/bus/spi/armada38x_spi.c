@@ -58,6 +58,7 @@ base type define
 
 
 #define MV_6820_DEV_ID		0x6820
+#define MV_6810_DEV_ID		0x6810
 #define MV_BOARD_TCLK_250MHZ    250000000
 
 #define MV_MEMIO32_READ(addr)        ((*((volatile unsigned int*)(addr))))
@@ -344,6 +345,11 @@ static const struct winbond_spi_flash_params winbond_spi_flash_table[] = {
 		.nr_blocks		= 128,
 		.name			= "W25Q80",
 	},
+        {
+                .id         = 0x6017,
+                .nr_blocks      = 128,
+                .name           = "W25Q64",
+        },
 };
 
 struct mrvl_spi_flash *spi_flash_probe_winbond(struct spi_slave *spi, unsigned char *idcode);
@@ -493,10 +499,14 @@ int mvSpiParamsSet(unsigned char spiId, unsigned char csId, MV_SPI_TYPE type)
 	return MV_OK;
 }
 
+#define		MV_SPI_TMNG_PARAMS_REG(spiId)			(MV_SPI_REGS_BASE(spiId) + 0x18)
+#define		MV_SPI_TMISO_SAMPLE_OFFSET			6
+#define		MV_SPI_TMISO_SAMPLE_MASK			(0x3 << MV_SPI_TMISO_SAMPLE_OFFSET)
 
 int mvSpiInit(unsigned char spiId, unsigned int serialBaudRate, MV_SPI_HAL_DATA *halData)
 {
 	int ret;
+	unsigned int timingReg;
 
 	spiHalData.ctrlModel = halData->ctrlModel;
 	spiHalData.tclk = halData->tclk;
@@ -508,6 +518,11 @@ int mvSpiInit(unsigned char spiId, unsigned int serialBaudRate, MV_SPI_HAL_DATA 
 
 	/* Configure the default SPI mode to be 16bit */
 	MV_SPI_REG_BIT_SET(MV_SPI_IF_CONFIG_REG(spiId), MV_SPI_BYTE_LENGTH_MASK);
+
+	timingReg = MV_REG_READ(MV_SPI_TMNG_PARAMS_REG(spiId));
+        timingReg &= ~MV_SPI_TMISO_SAMPLE_MASK;
+        timingReg |= (0x2) << MV_SPI_TMISO_SAMPLE_OFFSET;
+        MV_REG_WRITE(MV_SPI_TMNG_PARAMS_REG(spiId), timingReg);
 
 	/* Verify that the CS is deasserted */
 	mvSpiCsDeassert(spiId);
@@ -521,7 +536,7 @@ int mvSysSpiInit(unsigned char spiId, unsigned int serialBaudRate)
 {
 	MV_SPI_HAL_DATA halData;
 
-	halData.ctrlModel = MV_6820_DEV_ID;
+	halData.ctrlModel = MV_6810_DEV_ID;
 	halData.tclk = MV_BOARD_TCLK_250MHZ;
 
 	return mvSpiInit(spiId, serialBaudRate, &halData);

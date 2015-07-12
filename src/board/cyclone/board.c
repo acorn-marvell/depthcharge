@@ -162,7 +162,7 @@ static int board_setup(void)
 
         new_armada38x_nand();
 
-	SpiController *spi = new_spi(0,0);
+	SpiController *spi = new_spi(1,0);
         flash_set_ops(&new_spi_flash(&spi->ops)->ops);
 	
 	return 0;
