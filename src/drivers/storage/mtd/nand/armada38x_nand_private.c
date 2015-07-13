@@ -261,6 +261,29 @@ typedef enum {
 
 /* Defined Flash Types */
 MV_NFC_FLASH_INFO flashDeviceInfo[] = {
+        {           /* Toshiba TC58NYG2S0HBAI4 4Gb */
+        .tADL = 70,     /* tADL, Address to write data delay */ /* XXXX */
+        .tCH = 5,       /* tCH, Enable signal hold time */
+        .tCS = 20,      /* tCS, Enable signal setup time */
+        .tWC = 25,      /* tWC, ND_nWE cycle duration */
+        .tWH = 10,      /* tWH, ND_nWE high duration */
+        .tWP = 12,      /* tWP, ND_nWE pulse time */
+        .tRC = 25,      /* tWC, ND_nRE cycle duration */
+        .tRH = 10,      /* tRH, ND_nRE high duration */ /* XXXX */
+        .tRP = 12,      /* tRP, ND_nRE pulse width */
+        .tR = 25000,        /* tR = tR+tRR+tWB+1, ND_nWE high to ND_nRE low for read - 25000+20+100+1 */
+        .tWHR = 60,     /* tWHR, ND_nWE high to ND_nRE low delay for status read */
+        .tAR = 10,      /* tAR, ND_ALE low to ND_nRE low delay */
+        .tRHW = 30,     /* tRHW, ND_nRE high to ND_nWE low delay */
+        .pgPrBlk = 64,      /* Pages per block - detected */
+        .pgSz = 4096,       /* Page size */
+        .oobSz = 256,       /* Spare size */
+        .blkNum = 2048,     /* Number of blocks/sectors in the flash */
+        .id = 0xAC98, /* 0xDC2C, WNC */       /* Device ID 0xDevice,Vendor */
+        .model = "Toshiba 4Gb 8bit",
+        .bb_page = 63,      /* Manufacturer Bad block marking page in block */
+        .flags = NFC_CLOCK_UPSCALE_200M
+        },
 	{			/* Micron 4Gb */
 	.tADL = 70,		/* tADL, Address to write data delay */
 	.tCH = 5,		/* tCH, Enable signal hold time */

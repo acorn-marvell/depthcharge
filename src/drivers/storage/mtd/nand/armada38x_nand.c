@@ -25,7 +25,7 @@
  ***********************************************************************/
 
 //#undef MV_DEBUG
-#define MV_DEBUG
+//#define MV_DEBUG
 #ifdef MV_DEBUG
 #define DB(x) x
 #else
@@ -977,11 +977,11 @@ static int nand_block_isbad(MtdDev *mtd, uint64_t addr, int *bad)
                 badblockpos = NAND_SMALL_BADBLOCK_POS;
 
 	/* Get address of the next block */
-	//addr += mtd->erasesize;
-	//addr &= ~(mtd->erasesize - 1);
+	addr += mtd->erasesize;
+	addr &= ~(mtd->erasesize - 1);
 
 	/* Get start of oob in last page */
-	//addr -= mtd->oobsize;
+	addr -= mtd->oobsize;
 	page = (int)(addr >> info->page_shift) & info->pagemask;
 
 	orion_nfc_cmdfunc(mtd, NAND_CMD_READOOB, badblockpos, page);
@@ -1001,11 +1001,11 @@ static int nand_block_markbad(MtdDev *mtd, uint64_t addr)
         struct orion_nfc_info *info = (struct orion_nfc_info *)mtd->priv;
 
 	/* Get address of the next block */
-	//addr += mtd->erasesize;
-	//addr &= ~(mtd->erasesize - 1);
+	addr += mtd->erasesize;
+	addr &= ~(mtd->erasesize - 1);
 
 	/* Get start of oob in last page */
-	//addr -= mtd->oobsize;
+	addr -= mtd->oobsize;
 
 	page = (int)(addr >> info->page_shift) & info->pagemask;
 
