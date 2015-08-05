@@ -21,7 +21,6 @@
  */
 
 #include <arch/io.h>
-
 #include "base/init_funcs.h"
 #include "drivers/bus/usb/usb.h"
 #include "drivers/storage/blockdev.h"
@@ -29,6 +28,7 @@
 #include "drivers/tpm/tpm.h"
 #include "vboot/util/flag.h"
 #include "eth.h"
+#include "drivers/gpio/sysinfo.h"
 #include "drivers/bus/spi/armada38x_spi.h"
 #include "drivers/storage/mtd/mtd.h"
 #include "drivers/storage/mtd/nand/armada38x_nand.h"
@@ -150,6 +150,8 @@ static void enable_usb(int target)
 
 static int board_setup(void)
 {
+	sysinfo_install_flags(NULL);
+
 	enable_usb(0);
 	mvEnableSwitchDelay(0);
 
