@@ -175,7 +175,7 @@ static int board_setup(void)
 
 int get_mach_id(void)
 {
-	return 0x6800;
+	return 0x6810;
 }
 
 INIT_FUNC(board_setup);
