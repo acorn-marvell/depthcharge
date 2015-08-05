@@ -33,6 +33,7 @@
 #include "drivers/storage/mtd/mtd.h"
 #include "drivers/storage/mtd/nand/armada38x_nand.h"
 #include "drivers/storage/mtd/stream.h"
+#include "drivers/power/armada38x.h"
 
 
 #define  DDR_BASE_CS_LOW_MASK   0xffff0000
@@ -151,6 +152,8 @@ static void enable_usb(int target)
 static int board_setup(void)
 {
 	sysinfo_install_flags(NULL);
+
+	power_set_ops(new_armada38x_power_ops());
 
 	enable_usb(0);
 	mvEnableSwitchDelay(0);
