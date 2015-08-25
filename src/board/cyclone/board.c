@@ -21,6 +21,7 @@
  */
 
 #include <arch/io.h>
+#include "boot/fit.h"
 #include "base/init_funcs.h"
 #include "drivers/bus/usb/usb.h"
 #include "drivers/storage/blockdev.h"
@@ -35,6 +36,7 @@
 #include "drivers/storage/mtd/stream.h"
 #include "drivers/power/armada38x.h"
 
+#define  CYCLONE_COMPAT_STR "google,cyclone-proto1"
 
 #define  DDR_BASE_CS_LOW_MASK   0xffff0000
 #define  DDR_SIZE_MASK          0xffff0000
@@ -152,6 +154,8 @@ static void enable_usb(int target)
 static int board_setup(void)
 {
 	sysinfo_install_flags(NULL);
+
+	fit_set_compat(CYCLONE_COMPAT_STR);
 
 	power_set_ops(new_armada38x_power_ops());
 
