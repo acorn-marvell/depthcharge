@@ -69,11 +69,10 @@ SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 typedef struct {
         I2cOps ops;
 	u8 bus_num;
-	u8 chip;
         unsigned initialized;
 } Armada38xI2c;
 
-Armada38xI2c *new_armada38x_i2c(u8 bus_num, u8 chip);
+Armada38xI2c *new_armada38x_i2c(u8 bus_num);
 
 
 
