@@ -26,6 +26,7 @@
 #include "drivers/bus/usb/usb.h"
 #include "drivers/storage/blockdev.h"
 #include "drivers/bus/i2c/armada38x_i2c.h"
+#include "drivers/tpm/slb9635_i2c.h"
 #include "drivers/tpm/tpm.h"
 #include "vboot/util/flag.h"
 #include "eth.h"
@@ -167,7 +168,8 @@ static int board_setup(void)
         UsbHostController *usb_host30 = new_usb_hc(XHCI, 0xF10F8000);
         list_insert_after(&usb_host30->list_node, &usb_host_controllers);
 
-	new_armada38x_i2c(0, 0x4E);
+	Armada38xI2c *i2c = new_armada38x_i2c(1);
+        tpm_set_ops(&new_slb9635_i2c(&i2c->ops, 0x20)->base.ops);
 
         new_armada38x_nand();
 

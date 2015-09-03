@@ -125,7 +125,7 @@ typedef char MV_8;
 #define DB1(x)
 #endif
 
-
+#define MAX_I2C_NUM                             2
 #define TWSI_SPEED                              100000
 
 /* The following is a list of Marvell status    */
@@ -316,8 +316,6 @@ static MV_STATUS mvTwsiAddrSet(MV_U8 chanNum, MV_TWSI_ADDR *twsiAddr, MV_TWSI_CM
 static MV_U32 mvTwsiInit(MV_U8 chanNum, MV_KHZ frequency, MV_U32 Tclk, MV_TWSI_ADDR *twsiAddr, MV_BOOL generalCallEnable);
 static MV_STATUS mvTwsiRead(MV_U8 chanNum, MV_TWSI_SLAVE *twsiSlave, MV_U8 *pBlock, MV_U32 blockSize);
 static MV_STATUS mvTwsiWrite(MV_U8 chanNum, MV_TWSI_SLAVE *twsiSlave, MV_U8 *pBlock, MV_U32 blockSize);
-//static MV_STATUS mvTwsiProbe(MV_U32 chip, MV_U32 Tclk);
-
 
 
 
@@ -1353,78 +1351,41 @@ MV_STATUS mvTwsiWrite(MV_U8 chanNum, MV_TWSI_SLAVE *pTwsiSlave, MV_U8 *pBlock, M
 	return MV_OK;
 }
 
-/*******************************************************************************
-* mvBoardTwsiProbe - Probe the given I2C chip address
-*
-* DESCRIPTION:
-*
-* INPUT:
-*       chip - i2c chip address to probe
-*
-* OUTPUT:
-*       None.
-*
-* RETURN:
-*       Returns MV_TRUE if a chip responded, MV_FALSE on failure
-*
-*******************************************************************************/
-#if 0
-MV_STATUS mvTwsiProbe(MV_U32 chip, MV_U32 Tclk)
+static int i2c_init(unsigned bus)
 {
-	MV_TWSI_ADDR eepromAddress, slave;
-	MV_U32 status = 0;
+	MV_TWSI_ADDR slave;
 
-	/* TWSI init */
-	slave.type = ADDR7_BIT;
-	slave.address = 0;
-
-	mvTwsiInit(0, TWSI_SPEED, Tclk, &slave, 0);
-
-	status = mvTwsiStartBitSet(0);
-
-	if (status) {
-		DB(mvOsPrintf("%s: Transaction start failed: 0x%02x\n", __func__, status));
-		mvTwsiStopBitSet(0);
-		return MV_FALSE;
-	}
-
-	eepromAddress.type = ADDR7_BIT;
-	eepromAddress.address = chip;
-
-	status = mvTwsiAddrSet(0, &eepromAddress, MV_TWSI_WRITE); /* send the slave address */
-	if (status) {
-		DB(mvOsPrintf("%s: Failed to set slave address: 0x%02x\n", __func__, status));
-		mvTwsiStopBitSet(0);
-		return MV_FALSE;
-	}
-	DB(mvOsPrintf("address %#x returned %#x\n", chip,
-				MV_REG_READ(TWSI_STATUS_BAUDE_RATE_REG(i2c_current_bus))));
-
-	/* issue a stop bit */
-	mvTwsiStopBitSet(0);
-
-	DB(mvOsPrintf("%s: successful I2C probe\n", __func__));
-	return MV_TRUE; /* successful completion */
-}
-#endif
-
-static int i2c_transfer(struct I2cOps *me, I2cSeg *segments, int seg_count)
-{
-	MV_TWSI_SLAVE twsiSlave;
-        MV_TWSI_ADDR slave;
-        Armada38xI2c *bus = container_of(me, Armada38xI2c, ops);
-        I2cSeg *seg = segments;
-        int ret = 0;
-
-        if (!bus->initialized) {
-		//todo maybe
-                bus->initialized = 1;
+        if(bus >= MAX_I2C_NUM){
+                return 1;
         }
 
         /* TWSI init */
         slave.type = ADDR7_BIT;
         slave.address = 0;
-        mvTwsiInit(bus->bus_num, TWSI_SPEED, mvBoardTclkGet(), &slave, 0);
+        mvTwsiInit(bus, TWSI_SPEED, mvBoardTclkGet(), &slave, 0);
+
+        return 0;
+}
+
+static void i2c_reset(struct I2cOps *me)
+{
+	Armada38xI2c *bus = container_of(me, Armada38xI2c, ops);
+	bus->initialized = 0;
+}
+
+static int i2c_transfer(struct I2cOps *me, I2cSeg *segments, int seg_count)
+{
+	MV_TWSI_SLAVE twsiSlave;
+        Armada38xI2c *bus = container_of(me, Armada38xI2c, ops);
+        I2cSeg *seg = segments;
+        int ret = 0;
+
+	if (!bus->initialized) {
+                if (0 != i2c_init(bus->bus_num))
+                        return 1;
+                else
+                        bus->initialized = 1;
+        }
 
         while (!ret && seg_count--) {
 		twsiSlave.slaveAddr.address = seg->chip;
@@ -1432,29 +1393,35 @@ static int i2c_transfer(struct I2cOps *me, I2cSeg *segments, int seg_count)
 		twsiSlave.moreThen256 = MV_FALSE;
 		twsiSlave.validOffset = MV_FALSE;
                 if (seg->read)
-                        ret = mvTwsiRead(0, &twsiSlave, seg->buf, seg->len);
+                        ret = mvTwsiRead(bus->bus_num, &twsiSlave, seg->buf, seg->len);
                 else
-                        ret  = mvTwsiWrite(0, &twsiSlave, seg->buf, seg->len);
+                        ret  = mvTwsiWrite(bus->bus_num, &twsiSlave, seg->buf, seg->len);
                 seg++;
+        }
+
+	if(ret){
+                i2c_reset(me);
+                return 1;
         }
 
         return 0;
 }
 
-Armada38xI2c *new_armada38x_i2c(u8 bus_num, u8 chip)
+Armada38xI2c *new_armada38x_i2c(u8 bus_num)
 {
         Armada38xI2c *bus = 0;
 
-        bus = xzalloc(sizeof(*bus));
-        bus->initialized = 0;
-	bus->chip = chip;
-	bus->bus_num = bus_num;
-        bus->ops.transfer = &i2c_transfer;
-        if (CONFIG_CLI)
-                add_i2c_controller_to_list(&bus->ops,
-                                                   "SlaveAddr%d", chip);
-
+        if (!i2c_init(bus_num)) {
+                bus = xzalloc(sizeof(*bus));
+                bus->initialized = 1;
+		bus->bus_num = bus_num;
+                bus->ops.transfer = &i2c_transfer;
+                if (CONFIG_CLI)
+                        add_i2c_controller_to_list(&bus->ops,
+                                                   "busnum%d", bus_num);
+        }
         return bus;
+
 }
 
 
