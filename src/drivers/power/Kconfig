@@ -57,3 +57,9 @@ config DRIVER_POWER_IPQ806X
 	default n
 	help
 	  Reboot or power off using the IPQ806X internals.
+
+config DRIVER_POWER_ARMADA38X
+        bool "ARMADA38X PMIC power management"
+        default n
+        help
+          Reboot or power off using the ARMADA38X internals.

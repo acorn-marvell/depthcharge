@@ -15,10 +15,5 @@
 ## Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301 USA
 ##
 
-depthcharge-$(CONFIG_DRIVER_BUS_SPI_EXYNOS5) += exynos5.c
-depthcharge-$(CONFIG_DRIVER_BUS_SPI_IMGTEC) += imgtec_spfi.c
-depthcharge-$(CONFIG_DRIVER_BUS_SPI_IPQ806X) += ipq806x.c
-depthcharge-$(CONFIG_DRIVER_BUS_SPI_ROCKCHIP) += rockchip.c
-depthcharge-$(CONFIG_DRIVER_BUS_SPI_TEGRA) += tegra.c
-depthcharge-$(CONFIG_DRIVER_BUS_SPI_BCM_QSPI) += bcm_qspi.c
-depthcharge-$(CONFIG_DRIVER_BUS_SPI_ARMADA38X_SPI) += armada38x_spi.c
+depthcharge-y += board.c
+depthcharge-y += eth.c

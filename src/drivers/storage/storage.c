@@ -2,9 +2,10 @@
  * Copyright (c) 2014, Linux Foundation. All rights reserved
  * Copyright 2014 Chromium OS Authors
  */
+#include <libpayload.h>
 
+#include "storage.h"
 #include "base/list.h"
-#include "debug/cli/common.h"
 #include "drivers/storage/blockdev.h"
 
 typedef struct {
@@ -18,7 +19,7 @@ typedef struct {
 
 static storage_devices current_devices;
 
-static int cli_storage_show(int argc, char *const argv[])
+int storage_show(void)
 {
 	int i;
 	BlockDev **bd;
@@ -34,14 +35,10 @@ static int cli_storage_show(int argc, char *const argv[])
 	return 0;
 }
 
-static int cli_storage_read(int argc, char *const argv[])
+int storage_read(int base_block, int num_blocks, int* dest_addr)
 {
-	int base_block, num_blocks, *dest_addr, i;
-	int *args[] = {&base_block, &num_blocks, (int*) &dest_addr};
 	BlockDev *bd;
-
-	for (i = 0; i < ARRAY_SIZE(args); i++)
-		*args[i] = strtoul(argv[i], NULL, 0);
+	int i;
 
 	if ((current_devices.curr_device < 0) ||
 	    (current_devices.curr_device >= current_devices.total)) {
@@ -54,14 +51,10 @@ static int cli_storage_read(int argc, char *const argv[])
 	return i != num_blocks;
 }
 
-static int cli_storage_write(int argc, char *const argv[])
+int storage_write(int base_block, int num_blocks, int* src_addr)
 {
-	int base_block, num_blocks, *src_addr, i;
-	int *args[] = {&base_block, &num_blocks, (int *) &src_addr};
 	BlockDev *bd;
-
-	for (i = 0; i < ARRAY_SIZE(args); i++)
-		*args[i] = strtoul(argv[i], NULL, 0);
+	int i;
 
 	if ((current_devices.curr_device < 0) ||
 	    (current_devices.curr_device >= current_devices.total)) {
@@ -74,7 +67,7 @@ static int cli_storage_write(int argc, char *const argv[])
 	return i != num_blocks;
 }
 
-static int cli_storage_dev(int argc, char *const argv[])
+int storage_dev(int device, char *const *device_name)
 {
 	int rv = 0;
 
@@ -83,13 +76,13 @@ static int cli_storage_dev(int argc, char *const argv[])
 	} else {
 		unsigned long cur_device;
 
-		cur_device = argc ?
-			strtoul(argv[0], NULL, 0) :
+		cur_device = device ?
+			strtoul(device_name[0], NULL, 0) :
 			current_devices.curr_device;
 		if (cur_device >= current_devices.total) {
 			printf("%d: bad device index. Current devices:",
 			       (int)cur_device);
-			cli_storage_show(0, NULL);
+			storage_show();
 			rv = -1;
 		} else {
 			current_devices.curr_device = cur_device;
@@ -100,7 +93,7 @@ static int cli_storage_dev(int argc, char *const argv[])
 	return rv;
 }
 
-static int cli_storage_init(int argc, char *const argv[])
+int storage_init(void)
 {
 	int i, count;
 	const ListNode *controllers[] = {
@@ -138,50 +131,5 @@ static int cli_storage_init(int argc, char *const argv[])
 	current_devices.total = count;
 	current_devices.curr_device = 0;
 
-	return cli_storage_show(0, NULL);
+	return storage_show();
 }
-
-typedef struct {
-	const char *subcommand_name;
-	int (*subcmd)(int argc, char *const argv[]);
-	int min_arg;
-	int max_arg;
-} cmd_map;
-
-static const cmd_map cmdmap[] = {
-	{ "dev", cli_storage_dev, 0, 1 },
-	{ "init", cli_storage_init, 0, 0 },
-	{ "show", cli_storage_show, 0, 0 },
-	{ "read", cli_storage_read, 3, 3 },
-	{ "write", cli_storage_write, 3, 3 },
-};
-
-static int do_storage(cmd_tbl_t *cmdtp, int flag,
-		      int argc, char * const argv[])
-{
-	if (argc >= 2) {
-		int i;
-
-		for (i = 0; i < ARRAY_SIZE(cmdmap); i++)
-			if (!strcmp(argv[1], cmdmap[i].subcommand_name)) {
-				int nargs = argc - 2;
-
-				if ((cmdmap[i].min_arg <= nargs) &&
-				    (cmdmap[i].max_arg >= nargs))
-					return cmdmap[i].subcmd(nargs, argv + 2);
-			}
-	}
-	return CMD_RET_USAGE;
-}
-
-U_BOOT_CMD(
-	storage, CONFIG_SYS_MAXARGS,	1,
-	"command for controlling onboard storage devices",
-	"\n"
-	" dev [dev#] - display or set default storage device\n"
-	" init - initialize storage devices\n"
-	" show - show currently initialized devices\n"
-	" read <base blk> <num blks> <dest addr> - read from default device\n"
-	" write <base blk> <num blks> <src addr> - write from default device\n"
-);
-

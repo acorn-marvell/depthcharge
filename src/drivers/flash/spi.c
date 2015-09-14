@@ -300,9 +300,10 @@ static int spi_flash_erase(FlashOps *me, uint32_t start, uint32_t size)
 
 SpiFlash *new_spi_flash(SpiOps *spi)
 {
-	uint32_t rom_size = lib_sysinfo.spi_flash.size;
-	uint32_t sector_size = lib_sysinfo.spi_flash.sector_size;
+	uint32_t rom_size = (spi->rom_size>0)?spi->rom_size:lib_sysinfo.spi_flash.size;
+	uint32_t sector_size = (spi->sector_size>0)?spi->sector_size:lib_sysinfo.spi_flash.sector_size;
 	uint8_t erase_cmd = lib_sysinfo.spi_flash.erase_cmd;
+
 
 	SpiFlash *flash = xmalloc(sizeof(*flash));
 	memset(flash, 0, sizeof(*flash));

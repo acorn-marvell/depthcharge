@@ -22,5 +22,6 @@ depthcharge-$(CONFIG_DRIVER_POWER_PCH) += pch.c
 depthcharge-$(CONFIG_DRIVER_POWER_RK808) += rk808.c
 depthcharge-$(CONFIG_DRIVER_POWER_TPS65913) += tps65913.c
 depthcharge-$(CONFIG_DRIVER_POWER_MAX77620) += max77620.c
+depthcharge-$(CONFIG_DRIVER_POWER_ARMADA38X) += armada38x.c
 depthcharge-y += power.c
 depthcharge-y += sysinfo.c
