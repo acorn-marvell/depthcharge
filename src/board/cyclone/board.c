@@ -36,6 +36,8 @@
 #include "drivers/storage/mtd/nand/armada38x_nand.h"
 #include "drivers/storage/mtd/stream.h"
 #include "drivers/power/armada38x.h"
+#include "drivers/storage/sdhci.h"
+#include "drivers/storage/mv_sdhci.h"
 
 #define  CYCLONE_COMPAT_STR "google,cyclone-proto1"
 
@@ -151,9 +153,12 @@ static void enable_usb(int target)
 
 	writel(regVal, USB_CORE_MODE_REG);
 }
-
+#define CONFIG_DRIVER_STORAGE_SDHCI_MV
 static int board_setup(void)
 {
+	#ifdef CONFIG_DRIVER_STORAGE_SDHCI_MV
+	SdhciHost *emmc = NULL;
+	#endif
 	sysinfo_install_flags(NULL);
 
 	fit_set_compat(CYCLONE_COMPAT_STR);
@@ -175,7 +180,10 @@ static int board_setup(void)
 
 	SpiController *spi = new_spi(1,0);
         flash_set_ops(&new_spi_flash(&spi->ops)->ops);
-	
+	#ifdef CONFIG_DRIVER_STORAGE_SDHCI_MV
+	emmc = new_mv_sdhci_host(CONFIG_SYS_MMC_BASE, 0, 0, SDHCI_QUIRK_32BIT_DMA_ADDR);
+	list_insert_after(&emmc->mmc_ctrlr.ctrlr.list_node, &fixed_block_dev_controllers);
+	#endif
 	return 0;
 }
 
