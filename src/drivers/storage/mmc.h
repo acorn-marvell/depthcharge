@@ -42,9 +42,18 @@
 #define MMC_VERSION_2_2		(MMC_VERSION_MMC | 0x22)
 #define MMC_VERSION_3		(MMC_VERSION_MMC | 0x30)
 #define MMC_VERSION_4		(MMC_VERSION_MMC | 0x40)
+#define MMC_VERSION_4_1     (MMC_VERSION_MMC | 0x401)                                                                    
+#define MMC_VERSION_4_2     (MMC_VERSION_MMC | 0x402)
+#define MMC_VERSION_4_3     (MMC_VERSION_MMC | 0x403)
+#define MMC_VERSION_4_41    (MMC_VERSION_MMC | 0x429)
+#define MMC_VERSION_4_5     (MMC_VERSION_MMC | 0x405)
+
+#define MMC_MAX_BLOCK_LEN   512
 
 #define MMC_MODE_HS		0x001
 #define MMC_MODE_HS_52MHz	0x010
+#define MMC_MODE_HS_200MHz	0x020
+#define MMC_MODE_1V8_VDD	0x080
 #define MMC_MODE_HS_200MHz	0x020
 #define MMC_MODE_1V8_VDD	0x080
 #define MMC_MODE_4BIT		0x100
@@ -52,6 +61,9 @@
 #define MMC_MODE_SPI		0x400
 #define MMC_MODE_HC		0x800
 #define MMC_AUTO_CMD12		0x1000
+
+#define MMC_MODE_MASK_WIDTH_BITS (MMC_MODE_4BIT | MMC_MODE_8BIT)
+#define MMC_MODE_WIDTH_BITS_SHIFT 8
 
 #define SD_DATA_4BIT		0x00040000
 
@@ -91,6 +103,12 @@
 #define MMC_CMD_SPI_READ_OCR		58
 #define MMC_CMD_SPI_CRC_ON_OFF		59
 
+#define MMC_CMD_RES_MAN			62
+
+#define MMC_CMD62_ARG1			0xefac62ec
+#define MMC_CMD62_ARG2			0xcbaea7
+
+
 #define SD_CMD_SEND_RELATIVE_ADDR	3
 #define SD_CMD_SWITCH_FUNC		6
 #define SD_CMD_SEND_IF_COND		8
@@ -120,6 +138,9 @@
 #define MMC_STATUS_RDY_FOR_DATA (1 << 8)
 #define MMC_STATUS_CURR_STATE	(0xf << 9)
 #define MMC_STATUS_ERROR	(1 << 19)
+
+#define MMC_STATE_PRG		(7 << 9)
+
 
 #define MMC_VDD_165_195		0x00000080	/* VDD voltage 1.65 - 1.95 */
 #define MMC_VDD_20_21		0x00000100	/* VDD voltage 2.0 ~ 2.1 */
@@ -153,6 +174,21 @@
 #define SD_SWITCH_CHECK		0
 #define SD_SWITCH_SWITCH	1
 
+#define EXT_CSD_GP_SIZE_MULT        143 /* R/W */
+#define EXT_CSD_PARTITIONS_ATTRIBUTE    156 /* R/W */
+#define EXT_CSD_PARTITIONING_SUPPORT    160 /* RO */
+#define EXT_CSD_RPMB_MULT       168 /* RO */
+#define EXT_CSD_ERASE_GROUP_DEF     175 /* R/W */
+#define EXT_CSD_BOOT_BUS_WIDTH      177
+#define EXT_CSD_PART_CONF       179 /* R/W */
+#define EXT_CSD_BUS_WIDTH       183 /* R/W */
+#define EXT_CSD_HS_TIMING       185 /* R/W */
+#define EXT_CSD_REV         192 /* RO */
+#define EXT_CSD_CARD_TYPE       196 /* RO */
+#define EXT_CSD_SEC_CNT         212 /* RO, 4 bytes */
+#define EXT_CSD_HC_WP_GRP_SIZE      221 /* RO */
+#define EXT_CSD_HC_ERASE_GRP_SIZE   224 /* RO */
+#define EXT_CSD_BOOT_MULT       226 /* RO */
 /*
  * EXT_CSD fields
  */
@@ -181,6 +217,16 @@
 #define EXT_CSD_BUS_WIDTH_4	1	/* Card is in 4 bit mode */
 #define EXT_CSD_BUS_WIDTH_8	2	/* Card is in 8 bit mode */
 
+#define EXT_CSD_BOOT_ACK_ENABLE			(1 << 6)
+#define EXT_CSD_BOOT_PARTITION_ENABLE		(1 << 3)
+#define EXT_CSD_PARTITION_ACCESS_ENABLE		(1 << 0)
+#define EXT_CSD_PARTITION_ACCESS_DISABLE	(0 << 0)
+
+#define EXT_CSD_BOOT_ACK(x)		(x << 6)
+#define EXT_CSD_BOOT_PART_NUM(x)	(x << 3)
+#define EXT_CSD_PARTITION_ACCESS(x)	(x << 0)
+
+
 #define R1_ILLEGAL_COMMAND		(1 << 22)
 #define R1_APP_CMD			(1 << 5)
 
@@ -201,7 +247,7 @@
 #define MMC_RSP_R6	(MMC_RSP_PRESENT|MMC_RSP_CRC|MMC_RSP_OPCODE)
 #define MMC_RSP_R7	(MMC_RSP_PRESENT|MMC_RSP_CRC|MMC_RSP_OPCODE)
 
-#define MMC_INIT_TIMEOUT_US	(1000 * 1000)
+#define MMC_INIT_TIMEOUT_US	(2*1000 * 1000)
 #define MMC_IO_RETRIES	(1000)
 #define MMC_CLOCK_20MHZ (20000000)
 #define MMC_CLOCK_25MHZ (25000000)
@@ -212,6 +258,21 @@
 #define MMC_CLOCK_DEFAULT_MHZ	(MMC_CLOCK_20MHZ)
 
 #define EXT_CSD_SIZE	(512)
+
+#define MMCPART_NOAVAILABLE	(0xff)
+#define PART_ACCESS_MASK	(0x7)
+#define PART_SUPPORT		(0x1)
+#define PART_ENH_ATTRIB		(0x1f)
+
+#define MMC_NUM_BOOT_PARTITION	2
+struct mmc_cid {
+	unsigned long psn;
+	unsigned short oid;
+	unsigned char mid;
+	unsigned char prv;
+	unsigned char mdt;
+	char pnm[7];
+};
 
 typedef struct MmcCommand {
 	uint16_t cmdidx;
@@ -244,7 +305,11 @@ typedef struct MmcCtrlr {
 	uint32_t f_max;
 	uint32_t bus_width;
 	uint32_t bus_hz;
-	uint32_t caps;
+	
+uint32_t card_caps;
+	uint32_t  host_caps;
+	
+uint32_t caps;
 	uint32_t b_max;
 
 	/*
@@ -265,18 +330,28 @@ typedef struct MmcMedia {
 
 	uint32_t caps;
 	uint32_t version;
+	uint32_t erase_grp_size;
 	uint32_t read_bl_len;
 	uint32_t write_bl_len;
+	char part_config;
+	char part_num;
+	uint64_t capacity_user;
+	uint64_t capacity_boot;
+	uint64_t capacity_rpmb;
+	uint64_t capacity_gp[4];
+	
 	uint64_t capacity;
 	int high_capacity;
 	uint32_t tran_speed;
 
+	uint32_t dsr_imp;
+	uint32_t dsr;
 	uint32_t ocr;
 	uint16_t rca;
 	uint32_t scr[2];
 	uint32_t csd[4];
 	uint32_t cid[4];
-
+	char op_cond_pending;
 	uint32_t op_cond_response; // The response byte from the last op_cond
 } MmcMedia;
 
