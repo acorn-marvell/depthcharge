@@ -73,4 +73,8 @@ config DRIVER_STORAGE_NVME
 	bool "NVMe driver"
 	default n
 
+config DRIVER_STORAGE_SDHCI_MV
+       depends on DRIVER_SDHCI
+       bool "Marvell SDHCI driver"
+       default n
 source src/drivers/storage/mtd/Kconfig
