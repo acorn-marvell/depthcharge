@@ -33,7 +33,6 @@
 #include "drivers/gpio/sysinfo.h"
 #include "drivers/bus/spi/armada38x_spi.h"
 #include "drivers/storage/mtd/mtd.h"
-#include "drivers/storage/mtd/nand/armada38x_nand.h"
 #include "drivers/storage/mtd/stream.h"
 #include "drivers/power/armada38x.h"
 #include "drivers/storage/sdhci.h"
@@ -175,8 +174,6 @@ static int board_setup(void)
 
 	Armada38xI2c *i2c = new_armada38x_i2c(1);
         tpm_set_ops(&new_slb9635_i2c(&i2c->ops, 0x20)->base.ops);
-
-        new_armada38x_nand();
 
 	SpiController *spi = new_spi(1,0);
         flash_set_ops(&new_spi_flash(&spi->ops)->ops);
