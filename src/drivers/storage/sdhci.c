@@ -209,9 +209,9 @@ static int sdhci_send_command(MmcCtrlr *mmc_ctrl, MmcCommand *cmd,
 	sdhci_writew(host, SDHCI_MAKE_CMD(cmd->cmdidx, flags), SDHCI_COMMAND);
 	do {
 		stat = sdhci_readl(host, SDHCI_INT_STATUS);
-		if (stat & SDHCI_INT_ERROR){
+		if (stat & SDHCI_INT_ERROR)
 			break;
-		}
+		
 			/* Some commands om MRVL controller are not updating the SDHCI interrupt status
 			 *             register fast enough. Adding small polling interval solves the problem */
 		if (/* cmd->cmdidx == MMC_CMD_ERASE ||  $$ Currently not used $$ */
@@ -233,9 +233,9 @@ static int sdhci_send_command(MmcCtrlr *mmc_ctrl, MmcCommand *cmd,
 	if ((stat & (SDHCI_INT_ERROR | mask)) == mask) {
 		sdhci_cmd_done(host, cmd);
 		sdhci_writel(host, mask, SDHCI_INT_STATUS);
-	} else{
+	} else
 		ret = -1;
-	}
+	
 	if (!ret && data)
 		ret = sdhci_transfer_data(host, data, start_addr);
 
@@ -254,12 +254,10 @@ static int sdhci_send_command(MmcCtrlr *mmc_ctrl, MmcCommand *cmd,
 	sdhci_reset(host, SDHCI_RESET_CMD);
 	sdhci_reset(host, SDHCI_RESET_DATA);
 	if (stat & SDHCI_INT_TIMEOUT)
-	{
 		return MMC_TIMEOUT;
-	}
-	else{
+	else
 		return MMC_COMM_ERR;
-		}
+		
 }
 
 static int sdhci_set_clock(SdhciHost *host, unsigned int clock)
@@ -498,8 +496,10 @@ static int sdhci_pre_init(SdhciHost *host)
 
 	if (caps & SDHCI_CAN_DO_8BIT)
 		host->mmc_ctrlr.caps |= MMC_MODE_8BIT;
+	
 	if (host->host_caps)
 		host->mmc_ctrlr.caps |= host->host_caps;
+	
 	if (caps & SDHCI_CAN_64BIT)
 		host->dma64 = 1;
 	host->mmc_ctrlr.host_caps = host->mmc_ctrlr.caps;

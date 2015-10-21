@@ -235,7 +235,7 @@ static uint32_t mmc_write(MmcMedia *media, uint32_t start, lba_t block_count,
 	 * token, not a STOP_TRANSMISSION request.
 	 */
 	if ((block_count > 1) /*&& !(media->ctrlr->caps & MMC_AUTO_CMD12)*/) {
-		udelay(30);
+		udelay(100);
 		cmd.cmdidx = MMC_CMD_STOP_TRANSMISSION;
 		cmd.cmdarg = 0;
 		cmd.resp_type = MMC_RSP_R1b;
@@ -280,7 +280,7 @@ static int mmc_read(MmcMedia *media, void *dest, uint32_t start,
 		return 0;
 
 	if ((block_count > 1) /*&& !(media->ctrlr->caps & MMC_AUTO_CMD12)*/) {
-		udelay(30);
+		udelay(100);
 		cmd.cmdidx = MMC_CMD_STOP_TRANSMISSION;
 		cmd.cmdarg = 0;
 		cmd.resp_type = MMC_RSP_R1b;
@@ -383,7 +383,7 @@ static int mmc_send_op_cond_iter(MmcMedia *mmc, MmcCommand *cmd, int use_arg)
 			(mmc->ctrlr->voltages &
 			(mmc->op_cond_response & OCR_VOLTAGE_MASK)) |
 			(mmc->op_cond_response & OCR_ACCESS_MODE);
-		if (mmc->caps & MMC_MODE_HC)
+		if (mmc->ctrlr->caps & MMC_MODE_HC)
 			cmd->cmdarg |= OCR_HCS;
 	}
 	
@@ -422,7 +422,6 @@ int mmc_send_op_cond(struct MmcMedia *mmc)
 static int mmc_complete_op_cond(MmcMedia *media)
 {
 	MmcCommand cmd;
-
 	int timeout = MMC_INIT_TIMEOUT_US;
 	uint64_t start;
 	media->op_cond_pending = 0;
@@ -432,10 +431,7 @@ static int mmc_complete_op_cond(MmcMedia *media)
 		// CMD1 queries whether initialization is done.
 		int err = mmc_send_op_cond_iter(media, &cmd, 1);
 		if (err)
-		{
-			
 			return err;
-		}
 		// OCR_BUSY means "initialization complete".
 		if (media->op_cond_response & OCR_BUSY)
 			break;
@@ -528,31 +524,10 @@ static int mmc_change_freq(MmcMedia *media)
 	if (err)
 		return err;
 
-	if (media->ctrlr->caps & MMC_MODE_HS_200MHz)
-		cardtype = ext_csd[EXT_CSD_CARD_TYPE] & 0x1f;
-	else
 		cardtype = ext_csd[EXT_CSD_CARD_TYPE] & 0xf;
 
-	if (cardtype & MMC_HS_200MHZ) {
-		/* Switch to 8-bit since HS200 only support 8-bit bus width */
-		err = mmc_switch(media, EXT_CSD_CMD_SET_NORMAL,
-			 EXT_CSD_BUS_WIDTH, EXT_CSD_BUS_WIDTH_8);
-		if (err)
-			return err;
-
-		/* Switch to HS200 */
-		err = mmc_switch(media, EXT_CSD_CMD_SET_NORMAL,
-			 EXT_CSD_HS_TIMING, 0x2);
-		if (err)
-			return err;
-
-		/* Adjust Host Bus Wisth to 8-bit */
-		mmc_set_bus_width(media->ctrlr, 8);
-		media->caps |= EXT_CSD_BUS_WIDTH_8;
-	} else {
 		err = mmc_switch(media, EXT_CSD_CMD_SET_NORMAL,
 			 EXT_CSD_HS_TIMING, 1);
-	}
 
 	if (err)
 		return err;
@@ -566,14 +541,11 @@ static int mmc_change_freq(MmcMedia *media)
 	if (!ext_csd[EXT_CSD_HS_TIMING])
 		return 0;
 
-	/* High Speed is set, there are types: HS200, 52MHz, 26MHz */
-	if (cardtype & MMC_HS_200MHZ)
-		media->caps |= (MMC_MODE_HS_200MHz
-			| MMC_MODE_HS_52MHz | MMC_MODE_HS);
-	else if (cardtype & MMC_HS_52MHZ)
-		media->caps |= MMC_MODE_HS_52MHz | MMC_MODE_HS;
-	else
-		media->caps |= MMC_MODE_HS;
+        /* High Speed is set, there are two types: 52MHz and 26MHz */
+        if (cardtype & MMC_HS_52MHZ)
+                media->caps |= MMC_MODE_HS_52MHz | MMC_MODE_HS;
+        else
+                media->caps |= MMC_MODE_HS;
 	return 0;
 }
 
@@ -753,7 +725,6 @@ static int mmc_startup(struct MmcMedia *mmc)
 		if (mmc_send_cmd(mmc->ctrlr, &cmd, NULL))
 			printf("MMC: SET_DSR failed\n");
 	}
-
 	/* Select the card, and put it into Transfer Mode */
 	cmd.cmdidx = MMC_CMD_SELECT_CARD;
 	cmd.resp_type = MMC_RSP_R1;
@@ -840,7 +811,6 @@ static int mmc_startup(struct MmcMedia *mmc)
 		mmc->capacity_boot = ext_csd[EXT_CSD_BOOT_MULT] << 17;
 
 		mmc->capacity_rpmb = ext_csd[EXT_CSD_RPMB_MULT] << 17;
-		//printf("%s part_config=%d,capacity_user=%u, capacity=%u,capacity_boot=%u,capacity_rpmb=%u\n",__FUNCTION__,mmc->part_config,(unsigned int)mmc->capacity_user,(unsigned int)mmc->capacity,(unsigned int)mmc->capacity_boot,(unsigned int)mmc->capacity_rpmb);
 		for (i = 0; i < 4; i++) {
 			int idx = EXT_CSD_GP_SIZE_MULT + i * 3;
 			mmc->capacity_gp[i] = (ext_csd[idx + 2] << 16) +
@@ -868,7 +838,7 @@ static int mmc_startup(struct MmcMedia *mmc)
 
 		/* An array of possible bus widths in order of preference */
 		static unsigned ext_csd_bits[] = {
-			EXT_CSD_BUS_WIDTH_8,
+			//EXT_CSD_BUS_WIDTH_8,
 			EXT_CSD_BUS_WIDTH_4,
 			EXT_CSD_BUS_WIDTH_1,
 		};
@@ -881,7 +851,7 @@ static int mmc_startup(struct MmcMedia *mmc)
 
 		/* An array to map chosen bus width to an integer */
 		static unsigned widths[] = {
-			8, 4, 1,
+			/*8,*/ 4, 1,
 		};
 		
 		for (idx=0; idx < ARRAY_SIZE(ext_csd_bits); idx++) {
@@ -891,11 +861,10 @@ static int mmc_startup(struct MmcMedia *mmc)
 			 * Check to make sure the controller supports
 			 * this bus width, if it's more than 1
 			 */
-			
 			if (extw != EXT_CSD_BUS_WIDTH_1 &&
 					!(mmc->ctrlr->host_caps & ext_to_hostcaps[extw]))
 				continue;
-
+			
 			err = mmc_switch(mmc, EXT_CSD_CMD_SET_NORMAL,
 					EXT_CSD_BUS_WIDTH, extw);
 
@@ -958,7 +927,6 @@ static int mmc_send_if_cond(MmcMedia *media)
 int mmc_setup_media(MmcCtrlr *ctrlr)
 {
 	int err;
-
 	MmcMedia *media = xzalloc(sizeof(*media));
 	media->ctrlr = ctrlr;
 
@@ -982,7 +950,7 @@ int mmc_setup_media(MmcCtrlr *ctrlr)
 	if (err == MMC_TIMEOUT) {
 		
 		err = mmc_send_op_cond(media);
-
+		
 		if (err && err != MMC_IN_PROGRESS) {
 			mmc_error("Card did not respond to voltage select!\n");
 			free(media);
@@ -994,9 +962,8 @@ int mmc_setup_media(MmcCtrlr *ctrlr)
 		free(media);
 		return err;
 	}
-
 	if (err == MMC_IN_PROGRESS){
-		udelay(10000);
+		udelay(30000);
 		err = mmc_complete_op_cond(media);
 	}
 	if (!err) {
