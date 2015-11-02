@@ -660,28 +660,28 @@ static int orion_nfc_do_cmd_pio(struct orion_nfc_info *info)
 		DB(NFC_DPRINT("About to issue Descriptor #%d (command %d, pageaddr 0x%x, length %d).\n",
 			    i, descInfo[i].cmd, descInfo[i].pageAddr, descInfo[i].length));
 		if ((status = mvNfcCommandPio(&info->nfcCtrl, &descInfo[i], MV_FALSE)) != MV_OK) {
-			DB(printf("mvNfcCommandPio() failed for command %d (%d).\n", descInfo[i].cmd, status));
+			printf("mvNfcCommandPio() failed for command %d (%d).\n", descInfo[i].cmd, status);
 			goto fail_stop;
 		}
 		DB(NFC_DPRINT("After issue command %d (NDSR=0x%x)\n", descInfo[i].cmd, MV_REG_READ(NFC_STATUS_REG)));
-
 		/* Check if command phase interrupts events are needed */
 		if (orion_nfc_cmd_info_lkup[descInfo[i].cmd].events_p1) {
+			udelay(100);
 			/* Enable necessary interrupts for command phase */
 			DB(NFC_DPRINT("Enabling part1 interrupts (IRQs 0x%x)\n", orion_nfc_cmd_info_lkup[descInfo[i].cmd].events_p1));
 			mvNfcIntrSet(&info->nfcCtrl, orion_nfc_cmd_info_lkup[descInfo[i].cmd].events_p1, MV_TRUE);
 
 			/* STEP2: wait for interrupt */
 			if (!orion_nfc_wait_for_completion_timeout(info, timeout)) {
-				DB(printf("command %d execution timed out (CS %d, NDCR=0x%x, NDSR=0x%x).\n",
-				       descInfo[i].cmd, info->nfcCtrl.currCs, MV_REG_READ(NFC_CONTROL_REG), MV_REG_READ(NFC_STATUS_REG)));
+				printf("command %d execution timed out (CS %d, NDCR=0x%x, NDSR=0x%x).\n",
+				       descInfo[i].cmd, info->nfcCtrl.currCs, MV_REG_READ(NFC_CONTROL_REG), MV_REG_READ(NFC_STATUS_REG));
 				info->retcode = ERR_CMD_TO;
 				goto fail_stop;
 			}
 
 			/* STEP3: Check for errors */
 			if (orion_nfc_error_check(info)) {
-				DB(NFC_DPRINT("Command level errors (DSCR=%08x, retcode=%d)\n", info->dscr, info->retcode));
+				NFC_DPRINT("Command level errors (DSCR=%08x, retcode=%d)\n", info->dscr, info->retcode);
 				goto fail_stop;
 			}
 		}
@@ -697,6 +697,17 @@ static int orion_nfc_do_cmd_pio(struct orion_nfc_info *info)
 			}
 		}
 		else {
+			int timeout_us = 100;
+			int timeout = 1*1000*1000/timeout_us;
+			MV_U32 stastus_mask = info->nfcCtrl.currCs==0?NFC_SR_RDY0_MASK:NFC_SR_RDY1_MASK;
+			while((MV_REG_READ(NFC_STATUS_REG) & stastus_mask)==0 && timeout--){
+				udelay(timeout_us);
+			}
+			if(!timeout){
+				printf("mvNfcReadWritePio: nand is not ready\n");
+				info->retcode = ERR_DATA_TO;
+				goto fail_stop;
+			}
 			DB(NFC_DPRINT("Starting nonSG PIO Read/Write (%d bytes, R/W mode %d)\n",
 				    descInfo[i].length, orion_nfc_cmd_info_lkup[descInfo[i].cmd].rw));
 			mvNfcReadWritePio(&info->nfcCtrl, descInfo[i].virtAddr,
@@ -705,21 +716,22 @@ static int orion_nfc_do_cmd_pio(struct orion_nfc_info *info)
 
 		/* check if data phase events are needed */
 		if (orion_nfc_cmd_info_lkup[descInfo[i].cmd].events_p2) {
+			udelay(100);
 			/* Enable the RDY interrupt to close the transaction */
 			DB(NFC_DPRINT("Enabling part2 interrupts (IRQs 0x%x)\n", orion_nfc_cmd_info_lkup[descInfo[i].cmd].events_p2));
 			mvNfcIntrSet(&info->nfcCtrl, orion_nfc_cmd_info_lkup[descInfo[i].cmd].events_p2, MV_TRUE);
 
 			/* STEP5: Wait for transaction to finish */
 			if (!orion_nfc_wait_for_completion_timeout(info, timeout)) {
-				DB(printf("command %d execution timed out (NDCR=0x%08x, NDSR=0x%08x, NDECCCTRL=0x%08x)\n", descInfo[i].cmd,
-						MV_REG_READ(NFC_CONTROL_REG), MV_REG_READ(NFC_STATUS_REG), MV_REG_READ(NFC_ECC_CONTROL_REG)));
+				printf("command %d execution timed out (NDCR=0x%08x, NDSR=0x%08x, NDECCCTRL=0x%08x)\n", descInfo[i].cmd,
+						MV_REG_READ(NFC_CONTROL_REG), MV_REG_READ(NFC_STATUS_REG), MV_REG_READ(NFC_ECC_CONTROL_REG));
 				info->retcode = ERR_DATA_TO;
 				goto fail_stop;
 			}
 
 			/* STEP6: Check for errors BB errors (in erase) */
 			if (orion_nfc_error_check(info)) {
-				DB(NFC_DPRINT("Data level errors (DSCR=0x%08x, retcode=%d)\n", info->dscr, info->retcode));
+				NFC_DPRINT("Data level errors (DSCR=0x%08x, retcode=%d)\n", info->dscr, info->retcode);
 				goto fail_stop;
 			}
 		}
@@ -744,6 +756,7 @@ static int orion_nfc_do_cmd_pio(struct orion_nfc_info *info)
 	return 0;
 
 fail_stop:
+	printf("orion_nfc_do_cmd_pio: fail_stop\n");
 	ndcr = MV_REG_READ(NFC_CONTROL_REG);
 	if (ndcr & NFC_CTRL_ND_RUN_MASK) {
 		DB(printf("WRONG NFC STAUS: command %d, NDCR=0x%08x, NDSR=0x%08x, NDECCCTRL=0x%08x)\n",
