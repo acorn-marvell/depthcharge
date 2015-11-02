@@ -49,6 +49,9 @@ config DRIVER_BUS_I2C_MT8173
         bool "MediaTek MT8173 I2C driver"
         default n
 
+config DRIVER_BUS_I2C_ARMADA38X
+        bool "Marvell Armada38x I2C driver"
+        default n
 config DRIVER_BUS_I2C_CYGNUS
 	bool "Cygnus I2C driver"
 	default n
