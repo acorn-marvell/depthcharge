@@ -836,8 +836,6 @@ SpiController *new_spi(unsigned bus_num, unsigned cs)
 		unsigned int config_mode = CONFIG_SF_DEFAULT_MODE;
 		g_spicontroller->spi_flash =  spi_flash_probe(bus_num, cs, config_speed, config_mode);
 
-		g_spicontroller->ops.rom_size = g_spicontroller->spi_flash->size;
-		g_spicontroller->ops.sector_size = g_spicontroller->spi_flash->sector_size;
 		return g_spicontroller;
 	}
 }
