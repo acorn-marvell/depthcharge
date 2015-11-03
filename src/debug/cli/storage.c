@@ -18,7 +18,7 @@ typedef struct {
 
 static storage_devices current_devices;
 
-static int cli_storage_show(int argc, char *const argv[])
+static int storage_show(int argc, char *const argv[])
 {
 	int i;
 	BlockDev **bd;
@@ -34,7 +34,7 @@ static int cli_storage_show(int argc, char *const argv[])
 	return 0;
 }
 
-static int cli_storage_read(int argc, char *const argv[])
+static int storage_read(int argc, char *const argv[])
 {
 	int base_block, num_blocks, *dest_addr, i;
 	int *args[] = {&base_block, &num_blocks, (int*) &dest_addr};
@@ -54,7 +54,7 @@ static int cli_storage_read(int argc, char *const argv[])
 	return i != num_blocks;
 }
 
-static int cli_storage_write(int argc, char *const argv[])
+static int storage_write(int argc, char *const argv[])
 {
 	int base_block, num_blocks, *src_addr, i;
 	int *args[] = {&base_block, &num_blocks, (int *) &src_addr};
@@ -74,34 +74,7 @@ static int cli_storage_write(int argc, char *const argv[])
 	return i != num_blocks;
 }
 
-static int cli_storage_test(int arc, char *const argv[])
-{
-	int base_block, num_blocks, *src_addr, pattern, *verify_addr, i;
-	int *args[] = {&base_block, &num_blocks, (int *)&src_addr, &pattern,(int *)&verify_addr};
-	BlockDev *bd;
-	for (i=0; i < ARRAY_SIZE(args); i++)
-		*args[i] = strtoul(argv[i], NULL, 0);
-	
-	if ((current_devices.curr_device < 0) ||
-	    (current_devices.curr_device >= current_devices.total)) {
-		printf("Is storage subsystem initialized?");
-		return -1;
-	}
-	
-	bd = current_devices.known_devices[current_devices.curr_device];
-	printf("Fill memory offset %p length %x with value %02x\n",src_addr,num_blocks*bd->block_size,pattern);
-	memset((void *)src_addr, pattern, num_blocks*bd->block_size);
-	printf("Write memory content at offset 0x%p to block %d, number of blocks %d ...\n",src_addr, base_block, num_blocks);
-	i = bd->ops.write(&bd->ops, base_block, num_blocks, src_addr);
-	printf("Read back to memory offset %p ...\n",verify_addr);
-	i = bd->ops.read(&bd->ops, base_block, num_blocks, verify_addr);
-	i = memcmp(src_addr, verify_addr, num_blocks*bd->block_size);
-	printf("Compare Result:%s\n",i?" FAILED.":"SUCSESS.");
-	return i;
-
-}
-
-static int cli_storage_dev(int argc, char *const argv[])
+static int storage_dev(int argc, char *const argv[])
 {
 	int rv = 0;
 
@@ -116,7 +89,7 @@ static int cli_storage_dev(int argc, char *const argv[])
 		if (cur_device >= current_devices.total) {
 			printf("%d: bad device index. Current devices:",
 			       (int)cur_device);
-			cli_storage_show(0, NULL);
+			storage_show(0, NULL);
 			rv = -1;
 		} else {
 			current_devices.curr_device = cur_device;
@@ -127,7 +100,7 @@ static int cli_storage_dev(int argc, char *const argv[])
 	return rv;
 }
 
-static int cli_storage_init(int argc, char *const argv[])
+static int storage_init(int argc, char *const argv[])
 {
 	int i, count;
 	const ListNode *controllers[] = {
@@ -165,7 +138,7 @@ static int cli_storage_init(int argc, char *const argv[])
 	current_devices.total = count;
 	current_devices.curr_device = 0;
 
-	return cli_storage_show(0, NULL);
+	return storage_show(0, NULL);
 }
 
 typedef struct {
@@ -176,12 +149,11 @@ typedef struct {
 } cmd_map;
 
 static const cmd_map cmdmap[] = {
-	{ "dev", cli_storage_dev, 0, 1 },
-	{ "init", cli_storage_init, 0, 0 },
-	{ "show", cli_storage_show, 0, 0 },
-	{ "read", cli_storage_read, 3, 3 },
-	{ "write", cli_storage_write, 3, 3 },
-	{ "test", cli_storage_test, 5, 5},
+	{ "dev", storage_dev, 0, 1 },
+	{ "init", storage_init, 0, 0 },
+	{ "show", storage_show, 0, 0 },
+	{ "read", storage_read, 3, 3 },
+	{ "write", storage_write, 3, 3 },
 };
 
 static int do_storage(cmd_tbl_t *cmdtp, int flag,
@@ -211,6 +183,5 @@ U_BOOT_CMD(
 	" show - show currently initialized devices\n"
 	" read <base blk> <num blks> <dest addr> - read from default device\n"
 	" write <base blk> <num blks> <src addr> - write from default device\n"
-	" test <base blk> <num blks> <src addr> <pattern> <verify addr> write and read back to compare\n"
 );
 
