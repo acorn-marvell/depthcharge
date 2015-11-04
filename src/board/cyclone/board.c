@@ -152,10 +152,10 @@ static void enable_usb(int target)
 
 	writel(regVal, USB_CORE_MODE_REG);
 }
-#define CONFIG_DRIVER_STORAGE_SDHCI_MV
+#define CONFIG_DRIVER_SDHCI_MV
 static int board_setup(void)
 {
-	#ifdef CONFIG_DRIVER_STORAGE_SDHCI_MV
+	#ifdef CONFIG_DRIVER_SDHCI_MV
 	SdhciHost *emmc = NULL;
 	#endif
 	sysinfo_install_flags(NULL);
@@ -177,7 +177,7 @@ static int board_setup(void)
 
 	SpiController *spi = new_spi(1,0);
         flash_set_ops(&new_spi_flash(&spi->ops)->ops);
-	#ifdef CONFIG_DRIVER_STORAGE_SDHCI_MV
+	#ifdef CONFIG_DRIVER_SDHCI_MV
 	emmc = new_mv_sdhci_host(CONFIG_SYS_MMC_BASE, 0, 0, SDHCI_QUIRK_32BIT_DMA_ADDR);
 	list_insert_after(&emmc->mmc_ctrlr.ctrlr.list_node, &fixed_block_dev_controllers);
 	#endif
