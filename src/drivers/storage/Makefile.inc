@@ -18,6 +18,7 @@
 depthcharge-$(CONFIG_DRIVER_AHCI) += ahci.c
 depthcharge-y += blockdev.c
 depthcharge-$(CONFIG_DRIVER_STORAGE_MMC) += mmc.c
+depthcharge-$(CONFIG_DRIVER_STORAGE_MMC_MV) += armada38x_mmc.c
 depthcharge-$(CONFIG_DRIVER_STORAGE_MMC_DW) += dw_mmc.c
 depthcharge-$(CONFIG_DRIVER_STORAGE_IPQ_806X) += ipq806x_mmc.c ipq806x_clocks.c
 depthcharge-$(CONFIG_DRIVER_STORAGE_MMC_TEGRA) += tegra_mmc.c bouncebuf.c
@@ -28,6 +29,6 @@ depthcharge-$(CONFIG_DRIVER_SDHCI) += sdhci.c mem_sdhci.c
 depthcharge-$(CONFIG_DRIVER_STORAGE_SDHCI_PCI) += pci_sdhci.c
 depthcharge-$(CONFIG_DRIVER_STORAGE_SPI_GPT) += spi_gpt.c
 depthcharge-$(CONFIG_DRIVER_STORAGE_NVME) += nvme.c
-depthcharge-$(CONFIG_DRIVER_SDHCI_MV) += mv_sdhci.c mem_sdhci.c
+depthcharge-$(CONFIG_DRIVER_SDHCI_MV) += armada38x_sdhci.c mem_sdhci.c
 subdirs-y += mtd
 depthcharge-$(CONFIG_DRIVER_STORAGE_MMC_MT8173) += mtk_mmc.c bouncebuf.c
