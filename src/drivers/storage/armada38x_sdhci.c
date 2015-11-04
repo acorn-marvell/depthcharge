@@ -27,7 +27,7 @@
 #include <libpayload.h>
 
 void *aligned_buffer;
-#include "drivers/storage/sdhci.h"
+#include "drivers/storage/armada38x_sdhci.h"
 
 static void sdhci_reset(SdhciHost *host, u8 mask)
 {

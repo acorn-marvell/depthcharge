@@ -19,7 +19,6 @@
  * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
  * MA 02111-1307 USA
  */
-
 #include <arch/io.h>
 #include "boot/fit.h"
 #include "base/init_funcs.h"
@@ -35,8 +34,7 @@
 #include "drivers/storage/mtd/mtd.h"
 #include "drivers/storage/mtd/stream.h"
 #include "drivers/power/armada38x.h"
-#include "drivers/storage/sdhci.h"
-#include "drivers/storage/mv_sdhci.h"
+#include "drivers/storage/armada38x_sdhci.h"
 
 #define  CYCLONE_COMPAT_STR "google,cyclone-proto1"
 
