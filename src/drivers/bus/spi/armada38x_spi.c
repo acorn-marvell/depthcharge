@@ -1,113 +1,58 @@
-#include "armada38x_spi.h"
+/*
+ * Copyright (c) 2012 The Linux Foundation. All rights reserved.
+ * Copyright 2015 Google Inc.
+ *
+ * See file CREDITS for list of people who contributed to this
+ * project.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but without any warranty; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+ * MA 02111-1307 USA
+ */
+
 #include <string.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <libpayload.h>
+#include "board/cyclone/common.h"
+#include "armada38x_spi.h"
 
-
-/******************************************************************************
-base type define
-*******************************************************************************/
-/* The following is a list of Marvell status    */
-#define MV_ERROR		    (-1)
-#define MV_OK			    (0)	/* Operation succeeded                   */
-#define MV_FAIL			    (1)	/* Operation failed                      */
-#define MV_BAD_VALUE        (2)	/* Illegal value (general)               */
-#define MV_OUT_OF_RANGE     (3)	/* The value is out of range             */
-#define MV_BAD_PARAM        (4)	/* Illegal parameter in function called  */
-#define MV_BAD_PTR          (5)	/* Illegal pointer value                 */
-#define MV_BAD_SIZE         (6)	/* Illegal size                          */
-#define MV_BAD_STATE        (7)	/* Illegal state of state machine        */
-#define MV_SET_ERROR        (8)	/* Set operation failed                  */
-#define MV_GET_ERROR        (9)	/* Get operation failed                  */
-#define MV_CREATE_ERROR     (10)	/* Fail while creating an item           */
-#define MV_NOT_FOUND        (11)	/* Item not found                        */
-#define MV_NO_MORE          (12)	/* No more items found                   */
-#define MV_NO_SUCH          (13)	/* No such item                          */
-#define MV_TIMEOUT          (14)	/* Time Out                              */
-#define MV_NO_CHANGE        (15)	/* Parameter(s) is already in this value */
-#define MV_NOT_SUPPORTED    (16)	/* This request is not support           */
-#define MV_NOT_IMPLEMENTED  (17)	/* Request supported but not implemented */
-#define MV_NOT_INITIALIZED  (18)	/* The item is not initialized           */
-#define MV_NO_RESOURCE      (19)	/* Resource not available (memory ...)   */
-#define MV_FULL             (20)	/* Item is full (Queue or table etc...)  */
-#define MV_EMPTY            (21)	/* Item is empty (Queue or table etc...) */
-#define MV_INIT_ERROR       (22)	/* Error occured while INIT process      */
-#define MV_HW_ERROR         (23)	/* Hardware error                        */
-#define MV_TX_ERROR         (24)	/* Transmit operation not succeeded      */
-#define MV_RX_ERROR         (25)	/* Recieve operation not succeeded       */
-#define MV_NOT_READY	    (26)	/* The other side is not ready yet       */
-#define MV_ALREADY_EXIST    (27)	/* Tried to create existing item         */
-#define MV_OUT_OF_CPU_MEM   (28)	/* Cpu memory allocation failed.         */
-#define MV_NOT_STARTED      (29)	/* Not started yet                       */
-#define MV_BUSY             (30)	/* Item is busy.                         */
-#define MV_TERMINATE        (31)	/* Item terminates it's work.            */
-#define MV_NOT_ALIGNED      (32)	/* Wrong alignment                       */
-#define MV_NOT_ALLOWED      (33)	/* Operation NOT allowed                 */
-#define MV_WRITE_PROTECT    (34)	/* Write protected                       */
-#define MV_DROPPED          (35)	/* Packet dropped                        */
-#define MV_STOLEN           (36)	/* Packet stolen */
-#define MV_CONTINUE         (37)        /* Continue */
-#define MV_RETRY		    (38)	/* Operation failed need retry           */
-
-#define MV_INVALID  (int)(-1)
-
-#define MV_FALSE	0
-#define MV_TRUE     (!(MV_FALSE))
-
-
-
-#define MV_6820_DEV_ID		0x6820
-#define MV_6810_DEV_ID		0x6810
-#define MV_BOARD_TCLK_250MHZ    250000000
-
-#define MV_MEMIO32_READ(addr)        ((*((volatile unsigned int*)(addr))))
-#define MV_32BIT_LE(X)  (X)
-#define MV_32BIT_LE_FAST(val)            MV_32BIT_LE(val)
-/* 32bit read in little endian mode */
-static unsigned int MV_MEMIO_LE32_READ(unsigned int addr)
-{
-	unsigned int data;
-
-	data= (unsigned int)MV_MEMIO32_READ(addr);
-
-	return (unsigned int)MV_32BIT_LE_FAST(data);
-}
-#define INTER_REGS_BASE			0xF1000000
-#define MV_REG_READ(offset)	(MV_MEMIO_LE32_READ(INTER_REGS_BASE | (offset)))
 #define MV_SPI_REG_READ		MV_REG_READ
-
-#define MV_SPI_REGS_OFFSET(unit)                (0x10600 + (unit * 0x80))
-#define MV_SPI_REGS_BASE(unit)		(MV_SPI_REGS_OFFSET(unit))
-#define		MV_SPI_IF_CONFIG_REG(spiId)			(MV_SPI_REGS_BASE(spiId) + 0x04)
-#define		MV_SPI_SPR_OFFSET				0
-#define		MV_SPI_SPR_MASK					(0xF << MV_SPI_SPR_OFFSET)
-#define		MV_SPI_SPPR_0_OFFSET				4
-#define		MV_SPI_SPPR_0_MASK				(0x1 << MV_SPI_SPPR_0_OFFSET)
-#define		MV_SPI_SPPR_HI_OFFSET				6
-#define		MV_SPI_SPPR_HI_MASK				(0x3 << MV_SPI_SPPR_HI_OFFSET)
-
-#define MV_MEMIO32_WRITE(addr, data) ((*((volatile unsigned int*)(addr))) = ((unsigned int)(data)))
-#define MV_MEMIO_LE32_WRITE(addr, data) MV_MEMIO32_WRITE(addr, MV_32BIT_LE_FAST(data))
-#define MV_REG_WRITE(offset, val) MV_MEMIO_LE32_WRITE((INTER_REGS_BASE | (offset)), (val))
 #define MV_SPI_REG_WRITE	MV_REG_WRITE
-
-#define MV_REG_BIT_SET(offset, bitMask)                 \
-        (MV_MEMIO32_WRITE((INTER_REGS_BASE | (offset)), \
-         (MV_MEMIO32_READ(INTER_REGS_BASE | (offset)) | \
-          MV_32BIT_LE_FAST(bitMask))))
 #define MV_SPI_REG_BIT_SET	MV_REG_BIT_SET
-#define		MV_SPI_BYTE_LENGTH_OFFSET			5	/* bit 5 */
-#define		MV_SPI_BYTE_LENGTH_MASK				(0x1  << MV_SPI_BYTE_LENGTH_OFFSET)
-
-#define MV_REG_BIT_RESET(offset,bitMask)                \
-        (MV_MEMIO32_WRITE((INTER_REGS_BASE | (offset)), \
-         (MV_MEMIO32_READ(INTER_REGS_BASE | (offset)) & \
-          MV_32BIT_LE_FAST(~bitMask))))
 #define MV_SPI_REG_BIT_RESET	MV_REG_BIT_RESET
-#define		MV_SPI_IF_CTRL_REG(spiId)			(MV_SPI_REGS_BASE(spiId) + 0x00)
-#define		MV_SPI_CS_ENABLE_OFFSET				0		/* bit 0 */
-#define		MV_SPI_CS_ENABLE_MASK				(0x1  << MV_SPI_CS_ENABLE_OFFSET)
+
+#define MV_SPI_REGS_OFFSET(unit)                        (0x10600 + (unit * 0x80))
+#define MV_SPI_REGS_BASE(unit)		                (MV_SPI_REGS_OFFSET(unit))
+#define	MV_SPI_IF_CONFIG_REG(spiId)			(MV_SPI_REGS_BASE(spiId) + 0x04)
+#define	MV_SPI_SPR_OFFSET				0
+#define	MV_SPI_SPR_MASK					(0xF << MV_SPI_SPR_OFFSET)
+#define	MV_SPI_SPPR_0_OFFSET				4
+#define	MV_SPI_SPPR_0_MASK				(0x1 << MV_SPI_SPPR_0_OFFSET)
+#define	MV_SPI_SPPR_HI_OFFSET				6
+#define	MV_SPI_SPPR_HI_MASK				(0x3 << MV_SPI_SPPR_HI_OFFSET)
+
+#define	MV_SPI_BYTE_LENGTH_OFFSET			5	/* bit 5 */
+#define	MV_SPI_BYTE_LENGTH_MASK				(0x1  << MV_SPI_BYTE_LENGTH_OFFSET)
+
+#define	MV_SPI_IF_CTRL_REG(spiId)			(MV_SPI_REGS_BASE(spiId) + 0x00)
+#define	MV_SPI_CS_ENABLE_OFFSET				0		/* bit 0 */
+#define	MV_SPI_CS_ENABLE_MASK				(0x1  << MV_SPI_CS_ENABLE_OFFSET)
+
+#define MV_SPI_TMNG_PARAMS_REG(spiId)                   (MV_SPI_REGS_BASE(spiId) + 0x18)
+#define MV_SPI_TMISO_SAMPLE_OFFSET                      6
+#define MV_SPI_TMISO_SAMPLE_MASK                        (0x3 << MV_SPI_TMISO_SAMPLE_OFFSET)
 
 typedef enum {
 	SPI_TYPE_FLASH = 0,
@@ -117,16 +62,16 @@ typedef enum {
 	SPI_TYPE_SLIC_ISI
 } MV_SPI_TYPE;
 
-#define		MV_SPI_CS_NUM_OFFSET				2
-#define		MV_SPI_CS_NUM_MASK				(0x7 << MV_SPI_CS_NUM_OFFSET)
-#define		MV_SPI_CPOL_OFFSET				11
-#define		MV_SPI_CPOL_MASK				(0x1 << MV_SPI_CPOL_OFFSET)
-#define		MV_SPI_CPHA_OFFSET				12
-#define		MV_SPI_CPHA_MASK				(0x1 << MV_SPI_CPHA_OFFSET)
-#define		MV_SPI_TXLSBF_OFFSET				13
-#define		MV_SPI_TXLSBF_MASK				(0x1 << MV_SPI_TXLSBF_OFFSET)
-#define		MV_SPI_RXLSBF_OFFSET				14
-#define		MV_SPI_RXLSBF_MASK				(0x1 << MV_SPI_RXLSBF_OFFSET)
+#define	MV_SPI_CS_NUM_OFFSET				2
+#define	MV_SPI_CS_NUM_MASK				(0x7 << MV_SPI_CS_NUM_OFFSET)
+#define	MV_SPI_CPOL_OFFSET				11
+#define	MV_SPI_CPOL_MASK				(0x1 << MV_SPI_CPOL_OFFSET)
+#define	MV_SPI_CPHA_OFFSET				12
+#define	MV_SPI_CPHA_MASK				(0x1 << MV_SPI_CPHA_OFFSET)
+#define	MV_SPI_TXLSBF_OFFSET				13
+#define	MV_SPI_TXLSBF_MASK				(0x1 << MV_SPI_TXLSBF_OFFSET)
+#define	MV_SPI_RXLSBF_OFFSET				14
+#define	MV_SPI_RXLSBF_MASK				(0x1 << MV_SPI_RXLSBF_OFFSET)
 
 #define NAND_SPI_PAGE_SIZE       2048
 #define NAND_SPI_OOB_SIZE        64
@@ -135,10 +80,10 @@ typedef enum {
 #define SPI_XFER_BEGIN	0x01			/* Assert CS before transfer */
 #define SPI_XFER_END	0x02			/* Deassert CS after transfer */
 
-#define		MV_SPI_INT_CAUSE_REG(spiId)			(MV_SPI_REGS_BASE(spiId) + 0x10)
-#define		MV_SPI_DATA_OUT_REG(spiId)			(MV_SPI_REGS_BASE(spiId) + 0x08)
-#define		MV_SPI_WAIT_RDY_MAX_LOOP			100000
-#define		MV_SPI_DATA_IN_REG(spiId)			(MV_SPI_REGS_BASE(spiId) + 0x0c)
+#define	MV_SPI_INT_CAUSE_REG(spiId)			(MV_SPI_REGS_BASE(spiId) + 0x10)
+#define	MV_SPI_DATA_OUT_REG(spiId)			(MV_SPI_REGS_BASE(spiId) + 0x08)
+#define	MV_SPI_WAIT_RDY_MAX_LOOP			100000
+#define	MV_SPI_DATA_IN_REG(spiId)			(MV_SPI_REGS_BASE(spiId) + 0x0c)
 
 #define CMD_READ_ID              0x9f        /*from spi_flash_internal.h        */
 #define CMD_RDSR                 0x0f        /* Read Status Register            */
@@ -187,11 +132,6 @@ typedef enum {
 #define IDCODE_CONT_LEN 0
 #define IDCODE_PART_LEN 5
 #define IDCODE_LEN (IDCODE_CONT_LEN + IDCODE_PART_LEN)
-
-
-/******************************************************************************
-base type define end
-*******************************************************************************/
 
 /******************************************************************************
 struct define
@@ -346,9 +286,9 @@ static const struct winbond_spi_flash_params winbond_spi_flash_table[] = {
 		.name			= "W25Q80",
 	},
         {
-                .id         = 0x6017,
-                .nr_blocks      = 128,
-                .name           = "W25Q64",
+                .id                     = 0x6017,
+                .nr_blocks              = 128,
+                .name                   = "W25Q64",
         },
 };
 
@@ -367,8 +307,6 @@ static const struct {
 /******************************************************************************
 param define end
 *******************************************************************************/
-
-
 
 int mvSpiBaudRateSet(unsigned char spiId, unsigned int serialBaudRate)
 {
@@ -499,10 +437,6 @@ int mvSpiParamsSet(unsigned char spiId, unsigned char csId, MV_SPI_TYPE type)
 	return MV_OK;
 }
 
-#define		MV_SPI_TMNG_PARAMS_REG(spiId)			(MV_SPI_REGS_BASE(spiId) + 0x18)
-#define		MV_SPI_TMISO_SAMPLE_OFFSET			6
-#define		MV_SPI_TMISO_SAMPLE_MASK			(0x3 << MV_SPI_TMISO_SAMPLE_OFFSET)
-
 int mvSpiInit(unsigned char spiId, unsigned int serialBaudRate, MV_SPI_HAL_DATA *halData)
 {
 	int ret;
@@ -559,10 +493,7 @@ int mvSpi8bitDataTxRx(unsigned char spiId, unsigned char txData, unsigned char *
 	MV_SPI_REG_WRITE(MV_SPI_INT_CAUSE_REG(spiId), 0x0);
 
 	/* Transmit data */
-	//printf("txData = %d ...\n",txData);
 	MV_SPI_REG_WRITE(MV_SPI_DATA_OUT_REG(spiId), txData);
-	//unsigned char test = MV_SPI_REG_READ(MV_SPI_DATA_OUT_REG(spiId));
-	//printf("test = %d ...\n",test);
 
 	/* wait with timeout for memory ready */
 	for (i = 0; i < MV_SPI_WAIT_RDY_MAX_LOOP; i++) {
@@ -576,7 +507,6 @@ int mvSpi8bitDataTxRx(unsigned char spiId, unsigned char txData, unsigned char *
 		if (currSpiInfo->byteCsAsrt) {
 			mvSpiCsDeassert(spiId);
 			/* WA to compansate Zarlink SLIC CS off time */
-			//mvOsUDelay(4);
 			udelay(4);
 		}
 		return MV_TIMEOUT;
@@ -589,7 +519,6 @@ int mvSpi8bitDataTxRx(unsigned char spiId, unsigned char txData, unsigned char *
 	if (currSpiInfo->byteCsAsrt) {
 		mvSpiCsDeassert(spiId);
 		/* WA to compansate Zarlink SLIC CS off time */
-		//mvOsUDelay(4);
 		udelay(4);
 	}
 
@@ -610,8 +539,6 @@ static int mrvl_spi_xfer(struct spi_slave *slave, unsigned int bitlen, const voi
 	MV_REG_BIT_RESET(MV_SPI_IF_CONFIG_REG(slave->bus), MV_SPI_BYTE_LENGTH_MASK);
 
 	/* TX/RX in 8bit chanks */
-
-	//int i = 0;
 	while (tmp_bitlen > 0)
 	{
 		if(pdout)
@@ -622,19 +549,14 @@ static int mrvl_spi_xfer(struct spi_slave *slave, unsigned int bitlen, const voi
 			return ret;
 
 		/* increment the pointers */
-		
 		if (pdin)
 		{
-			//printf("in[%d]=[0x%x]    ",i,*pdin);
 			pdin++;
-			//i++;
 		}
 		
 		if (pdout)
 		{
-			//printf("out[%d]=[0x%x]    ",i,*pdout);
 			pdout++;
-			//i++;
 		}
 
 		tmp_bitlen-=8;
@@ -650,8 +572,6 @@ static int spi_flash_read_write(struct spi_slave *spi,
 {
 	unsigned long flags = SPI_XFER_BEGIN;
 	int ret;
-
-	//printf("data_len = %d ...\n ",data_len);
 
 	if (data_len == 0)
 		flags |= SPI_XFER_END;

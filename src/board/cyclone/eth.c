@@ -1,19 +1,42 @@
-#include <arch/io.h>
+/*
+ * Copyright (c) 2015, The Linux Foundation. All rights reserved.
+ * Copyright 2015 Google Inc.
+ *
+ * See file CREDITS for list of people who contributed to this
+ * project.
+ *
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2 of
+ * the License, or (at your option) any later version.
+ *
+ * This program is distributed in the hope that it will be useful,
+ * but without any warranty; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
+ *
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 59 Temple Place, Suite 330, Boston,
+ * MA 02111-1307 USA
+ */
+
 #include <stdio.h>
+#include "common.h"
 #include "eth.h"
 
-void mvEthSwitchRegRead(MV_U32 ethPortNum, MV_U32 switchPort,
-                             MV_U32 switchReg, MV_U16 *data){
-        MV_U32                  smiReg;
-        volatile MV_U32 timeout;
+void mvEthSwitchRegRead(u32 ethPortNum, u32 switchPort,
+                             u32 switchReg, u16 *data)
+{
+        u32 smiReg;
+        volatile u32 timeout;
 
         /* check parameters */
         if ((switchPort << ETH_PHY_SMI_DEV_ADDR_OFFS) & ~ETH_PHY_SMI_DEV_ADDR_MASK) {
-                //mvOsPrintf("mvEthPhyRegRead: Err. Illegal PHY device address\n");
                 return;
         }
         if ((switchReg <<  ETH_PHY_SMI_REG_ADDR_OFFS) & ~ETH_PHY_SMI_REG_ADDR_MASK) {
-                mvOsPrintf("mvEthPhyRegRead: Err. Illegal PHY register offset %u\n",
+                printf("mvEthPhyRegRead: Err. Illegal PHY register offset %u\n",
                                 switchReg);
                 return;
         }
@@ -25,7 +48,7 @@ void mvEthSwitchRegRead(MV_U32 ethPortNum, MV_U32 switchPort,
                 smiReg = MV_REG_READ(ETH_SMI_REG(MV_ETH_SMI_PORT));
 
                 if (timeout-- == 0) {
-                        mvOsPrintf("mvEthPhyRegRead: SMI busy timeout\n");
+                        printf("mvEthPhyRegRead: SMI busy timeout\n");
                         return;
                 }
         } while (smiReg & ETH_PHY_SMI_BUSY_MASK);
@@ -45,7 +68,7 @@ void mvEthSwitchRegRead(MV_U32 ethPortNum, MV_U32 switchPort,
                 smiReg = MV_REG_READ(ETH_SMI_REG(MV_ETH_SMI_PORT));
 
                 if (timeout-- == 0) {
-                        mvOsPrintf("mvEthPhyRegRead: SMI read-valid timeout\n");
+                        printf("mvEthPhyRegRead: SMI read-valid timeout\n");
                         return;
                 }
         } while (!(smiReg & ETH_PHY_SMI_READ_VALID_MASK));
@@ -58,19 +81,19 @@ void mvEthSwitchRegRead(MV_U32 ethPortNum, MV_U32 switchPort,
 
         return;
 }
-void mvEthSwitchRegWrite(MV_U32 ethPortNum, MV_U32 switchPort,
-                                 MV_U32 switchReg, MV_U16 data)
+void mvEthSwitchRegWrite(u32 ethPortNum, u32 switchPort,
+                                 u32 switchReg, u16 data)
 {
-        MV_U32                  smiReg;
-        volatile MV_U32 timeout;
+        u32 smiReg;
+        volatile u32 timeout;
 
         /* check parameters */
         if ((switchPort <<  ETH_PHY_SMI_DEV_ADDR_OFFS) & ~ETH_PHY_SMI_DEV_ADDR_MASK) {
-                mvOsPrintf("mvEthPhyRegWrite: Err. Illegal phy address 0x%x\n", switchPort);
+                printf("mvEthPhyRegWrite: Err. Illegal phy address 0x%x\n", switchPort);
                 return;
         }
         if ((switchReg <<  ETH_PHY_SMI_REG_ADDR_OFFS) & ~ETH_PHY_SMI_REG_ADDR_MASK) {
-                mvOsPrintf("mvEthPhyRegWrite: Err. Illegal register offset 0x%x\n", switchReg);
+                printf("mvEthPhyRegWrite: Err. Illegal register offset 0x%x\n", switchReg);
                 return;
         }
 
@@ -81,7 +104,7 @@ void mvEthSwitchRegWrite(MV_U32 ethPortNum, MV_U32 switchPort,
                 /* read smi register */
                 smiReg = MV_REG_READ(ETH_SMI_REG(MV_ETH_SMI_PORT));
                 if (timeout-- == 0) {
-                        mvOsPrintf("mvEthPhyRegWrite: SMI busy timeout\n");
+                        printf("mvEthPhyRegWrite: SMI busy timeout\n");
                 return;
                 }
         } while (smiReg & ETH_PHY_SMI_BUSY_MASK);
@@ -99,16 +122,15 @@ void mvEthSwitchRegWrite(MV_U32 ethPortNum, MV_U32 switchPort,
         return;
 }
 
-MV_U32 mvBoardSwitchCpuPortGet(MV_U32 switchIdx)
+u32 mvBoardSwitchCpuPortGet(u32 switchIdx)
 {
     return 5;
 }
 
-
-void mvEnableSwitchDelay(MV_U32 ethPortNum)
+void mvEnableSwitchDelay(u32 ethPortNum)
 {
-	MV_U16 reg;
-	MV_U32 cpuPort =  mvBoardSwitchCpuPortGet(0);
+	u16 reg;
+	u32 cpuPort =  mvBoardSwitchCpuPortGet(0);
 	/* Enable RGMII delay on Tx and Rx for port 5 switch 1 */
         mvEthSwitchRegRead(ethPortNum, MV_E6171_PORTS_OFFSET + cpuPort, MV_E6171_SWITCH_PHIYSICAL_CTRL_REG, &reg);
         mvEthSwitchRegWrite(ethPortNum, MV_E6171_PORTS_OFFSET + cpuPort, MV_E6171_SWITCH_PHIYSICAL_CTRL_REG,
