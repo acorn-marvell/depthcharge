@@ -1,5 +1,5 @@
 /*
- * Copyright 2013 Google Inc.
+ * Copyright 2015 Google Inc.
  *
  * See file CREDITS for list of people who contributed to this
  * project.
@@ -66,15 +66,6 @@
 #define  USB_BRIDGE_INTR_CAUSE_REG      (USB_REG_BASE + 0x310)
 #define  USB_BRIDGE_INTR_MASK_REG       (USB_REG_BASE + 0x314)
 #define  USB_BRIDGE_IPG_REG             (USB_REG_BASE + 0x360)
-
-void *memcpy(void *dst, const void *src, size_t n)
-{
-	char *dp = dst;
-	const char *sp = src;
-	while (n--)
-		*dp++ = *sp++;
-	return dst;
-}
 
 static void enable_usb(int target)
 {

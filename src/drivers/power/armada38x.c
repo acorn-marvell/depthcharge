@@ -22,19 +22,12 @@
 
 #include <libpayload.h>
 #include "base/container_of.h"
+#include "board/cyclone/common.h"
 #include "drivers/power/armada38x.h"
 
-#define INTER_REGS_BASE                 (0xF1000000)
 #define MV_MISC_REGS_BASE			(0x18200)
 #define CPU_RSTOUTN_MASK_REG			(MV_MISC_REGS_BASE + 0x60)
 #define CPU_SYS_SOFT_RST_REG			(MV_MISC_REGS_BASE + 0x64)
-
-
-#define BIT0        0x00000001
-
-
-#define MV_REG_BIT_SET(offset, bitMask)                 \
-        (writel((readl((void *)(INTER_REGS_BASE | (offset))) | (bitMask)), (void *)(INTER_REGS_BASE | (offset))))
 
 static int armada38x_cold_reboot(struct PowerOps *me)
 {
