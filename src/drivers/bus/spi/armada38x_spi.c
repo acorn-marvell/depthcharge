@@ -712,7 +712,6 @@ static struct SpiController* g_spicontroller = NULL;
 
 static int spi_claim_bus(SpiOps *spi_ops)
 {
-	printf("spi_claim_bus \n");
 	mvSpiCsSet(g_spicontroller->spi_flash->spi->bus, g_spicontroller->spi_flash->spi->cs);
 	mvSpiCsAssert(g_spicontroller->spi_flash->spi->bus);
 	return 0;
@@ -720,7 +719,6 @@ static int spi_claim_bus(SpiOps *spi_ops)
 
 static int spi_release_bus(SpiOps *ops)
 {
-	printf("spi_release_bus \n");
 	mvSpiCsDeassert(g_spicontroller->spi_flash->spi->bus);
 	return 0;
 }
@@ -762,31 +760,3 @@ SpiController *new_spi(unsigned bus_num, unsigned cs)
 		return g_spicontroller;
 	}
 }
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
