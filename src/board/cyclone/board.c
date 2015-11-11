@@ -23,6 +23,8 @@
 #include "boot/fit.h"
 #include "base/init_funcs.h"
 #include "drivers/bus/usb/usb.h"
+#include "drivers/bus/i2c/armada38x_i2c.h"
+#include "drivers/tpm/slb9635_i2c.h"
 #include "drivers/tpm/tpm.h"
 #include "vboot/util/flag.h"
 #include "drivers/gpio/sysinfo.h"
@@ -145,6 +147,9 @@ static int board_setup(void)
         list_insert_after(&usb_host20->list_node, &usb_host_controllers);
         UsbHostController *usb_host30 = new_usb_hc(XHCI, 0xF10F8000);
         list_insert_after(&usb_host30->list_node, &usb_host_controllers);
+
+	Armada38xI2c *i2c = new_armada38x_i2c(1);
+        tpm_set_ops(&new_slb9635_i2c(&i2c->ops, 0x20)->base.ops);
 
 	SpiController *spi = new_spi(1,0);
         flash_set_ops(&new_spi_flash(&spi->ops)->ops);
