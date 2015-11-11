@@ -26,6 +26,7 @@
 #include "drivers/tpm/tpm.h"
 #include "vboot/util/flag.h"
 #include "drivers/gpio/sysinfo.h"
+#include "drivers/bus/spi/armada38x_spi.h"
 
 #define  CYCLONE_COMPAT_STR "google,cyclone-proto1"
 
@@ -145,6 +146,8 @@ static int board_setup(void)
         UsbHostController *usb_host30 = new_usb_hc(XHCI, 0xF10F8000);
         list_insert_after(&usb_host30->list_node, &usb_host_controllers);
 
+	SpiController *spi = new_spi(1,0);
+	flash_set_ops(&new_spi_flash(&spi->ops)->ops);
 	return 0;
 }
 
