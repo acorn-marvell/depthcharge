@@ -24,6 +24,12 @@ config DRIVER_STORAGE_MMC
         help
           For platforms with SD/MMC card readers not on USB bus.
 
+config DRIVER_STORAGE_MMC_MV
+        bool "Marvell SD/MMC storage Driver"
+	default n
+	help
+	  For platforms with SD/MMC card readers not on USB bus.
+
 config DRIVER_STORAGE_MSHC_S5P
 	depends on  DRIVER_STORAGE_MMC
 	bool "S5P MSHC/MMC driver"
@@ -78,4 +84,8 @@ config DRIVER_STORAGE_NVME
 	bool "NVMe driver"
 	default n
 
+config DRIVER_SDHCI_MV
+       depends on DRIVER_STORAGE_MMC_MV
+       bool "Marvell SDHCI driver"
+       default n
 source src/drivers/storage/mtd/Kconfig

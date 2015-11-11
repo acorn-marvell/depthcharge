@@ -30,6 +30,7 @@
 #include "drivers/gpio/sysinfo.h"
 #include "drivers/bus/spi/armada38x_spi.h"
 #include "drivers/power/armada38x.h"
+#include "drivers/storage/armada38x_sdhci.h"
 
 #define  CYCLONE_COMPAT_STR "google,cyclone-proto1"
 
@@ -138,6 +139,7 @@ static void enable_usb(int target)
 }
 static int board_setup(void)
 {
+	SdhciHost *emmc = NULL;
 	sysinfo_install_flags(NULL);
 
 	fit_set_compat(CYCLONE_COMPAT_STR);
@@ -156,6 +158,9 @@ static int board_setup(void)
 
 	SpiController *spi = new_spi(1,0);
         flash_set_ops(&new_spi_flash(&spi->ops)->ops);
+
+	emmc = new_mv_sdhci_host(CONFIG_SYS_MMC_BASE, 0, 0, SDHCI_QUIRK_32BIT_DMA_ADDR);
+	list_insert_after(&emmc->mmc_ctrlr.ctrlr.list_node, &fixed_block_dev_controllers);
 	return 0;
 }
 
